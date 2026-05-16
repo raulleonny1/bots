@@ -1,42 +1,155 @@
 /**
- * Servicio preparado para integración futura con OpenAI API.
- * Actualmente es un stub: activa OPENAI_ENABLED=true cuando tengas API key.
+ * Integración con OpenAI (ChatGPT) para respuestas a preguntas complejas.
  */
 
+const OpenAI = require('openai');
 const { config } = require('../config/env');
+const { systemPrompt } = require('../config/openai');
+const { isComplexMessage } = require('../utils/complexMessage');
 const logger = require('../utils/logger');
+
+/** Cliente OpenAI (singleton) */
+let openaiClient = null;
+
+/** Historial corto por chat: chatId -> [{role, content}] */
+const conversationHistory = new Map();
+
+/** Última petición por chat (rate limit) */
+const lastRequestAt = new Map();
 
 function isEnabled() {
   return config.openai.enabled && Boolean(config.openai.apiKey);
 }
 
+function getClient() {
+  if (!openaiClient) {
+    openaiClient = new OpenAI({ apiKey: config.openai.apiKey });
+  }
+  return openaiClient;
+}
+
 /**
- * Genera una respuesta usando OpenAI (implementación futura).
- * @param {string} userMessage - Mensaje del usuario
- * @returns {Promise<string|null>}
+ * Comprueba cooldown por usuario para no saturar la API.
  */
-async function generateReply(userMessage) {
+function isOnCooldown(chatId) {
+  const last = lastRequestAt.get(chatId);
+  if (!last) return false;
+  return Date.now() - last < config.openai.cooldownMs;
+}
+
+function touchCooldown(chatId) {
+  lastRequestAt.set(chatId, Date.now());
+}
+
+/**
+ * Obtiene y actualiza historial de conversación (ventana deslizante).
+ */
+function getHistory(chatId) {
+  if (!conversationHistory.has(chatId)) {
+    conversationHistory.set(chatId, []);
+  }
+  return conversationHistory.get(chatId);
+}
+
+function appendToHistory(chatId, role, content) {
+  const history = getHistory(chatId);
+  history.push({ role, content });
+
+  const max = config.openai.maxHistoryMessages;
+  while (history.length > max) {
+    history.shift();
+  }
+}
+
+function clearHistory(chatId) {
+  conversationHistory.delete(chatId);
+}
+
+/**
+ * Indica si este mensaje debe ir a ChatGPT.
+ */
+function shouldUseAI(messageBody, chatId) {
+  if (!isEnabled()) return false;
+
+  if (isOnCooldown(chatId)) {
+    logger.debug('OpenAI en cooldown para este chat', { chatId });
+    return false;
+  }
+
+  return isComplexMessage(messageBody, {
+    minLength: config.openai.minMessageLength,
+    onlyQuestions: config.openai.onlyQuestions,
+    ignoreGreetings: config.openai.ignoreGreetings,
+  });
+}
+
+/**
+ * Genera respuesta con ChatGPT.
+ * @param {string} userMessage
+ * @param {string} chatId - ID del chat de WhatsApp
+ */
+async function generateReply(userMessage, chatId = 'default') {
   if (!isEnabled()) {
     return null;
   }
 
-  // TODO: Descomentar e instalar 'openai' cuando quieras activar esta función:
-  // npm install openai
-  //
-  // const OpenAI = require('openai');
-  // const openai = new OpenAI({ apiKey: config.openai.apiKey });
-  //
-  // const completion = await openai.chat.completions.create({
-  //   model: config.openai.model,
-  //   messages: [
-  //     { role: 'system', content: 'Eres un asistente amable de una iglesia.' },
-  //     { role: 'user', content: userMessage },
-  //   ],
-  // });
-  // return completion.choices[0]?.message?.content || null;
+  if (!shouldUseAI(userMessage, chatId)) {
+    return null;
+  }
 
-  logger.debug('OpenAI habilitado pero stub activo — implementa generateReply en services/openaiService.js');
-  return null;
+  try {
+    const client = getClient();
+    const history = getHistory(chatId);
+
+    const messages = [
+      { role: 'system', content: config.openai.systemPrompt || systemPrompt },
+      ...history,
+      { role: 'user', content: userMessage },
+    ];
+
+    logger.info('Consultando OpenAI...', {
+      model: config.openai.model,
+      chatId,
+    });
+
+    const completion = await client.chat.completions.create({
+      model: config.openai.model,
+      messages,
+      max_tokens: config.openai.maxTokens,
+      temperature: config.openai.temperature,
+    });
+
+    const reply = completion.choices[0]?.message?.content?.trim();
+
+    if (!reply) {
+      logger.warn('OpenAI devolvió respuesta vacía');
+      return null;
+    }
+
+    // Guardar en historial para contexto en mensajes siguientes
+    appendToHistory(chatId, 'user', userMessage);
+    appendToHistory(chatId, 'assistant', reply);
+
+    touchCooldown(chatId);
+
+    logger.success('Respuesta OpenAI generada', {
+      tokens: completion.usage?.total_tokens,
+      length: reply.length,
+    });
+
+    return reply;
+  } catch (error) {
+    logger.error('Error al llamar OpenAI', {
+      message: error.message,
+      status: error.status,
+    });
+    return null;
+  }
 }
 
-module.exports = { isEnabled, generateReply };
+module.exports = {
+  isEnabled,
+  shouldUseAI,
+  generateReply,
+  clearHistory,
+};

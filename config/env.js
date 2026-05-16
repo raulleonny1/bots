@@ -41,6 +41,14 @@ const config = {
     enabled: parseBool(process.env.OPENAI_ENABLED, false),
     apiKey: process.env.OPENAI_API_KEY || '',
     model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+    maxTokens: parseInt(process.env.OPENAI_MAX_TOKENS, 10) || 400,
+    temperature: parseFloat(process.env.OPENAI_TEMPERATURE) || 0.7,
+    minMessageLength: parseInt(process.env.OPENAI_MIN_MESSAGE_LENGTH, 10) || 25,
+    onlyQuestions: parseBool(process.env.OPENAI_ONLY_QUESTIONS, true),
+    ignoreGreetings: parseBool(process.env.OPENAI_IGNORE_GREETINGS, true),
+    cooldownMs: parseInt(process.env.OPENAI_COOLDOWN_MS, 10) || 15000,
+    maxHistoryMessages: parseInt(process.env.OPENAI_MAX_HISTORY_MESSAGES, 10) || 6,
+    systemPrompt: process.env.OPENAI_SYSTEM_PROMPT || '',
   },
 
   reconnect: {

@@ -57,6 +57,13 @@ async function startBot() {
   const warnings = validateConfig();
   warnings.forEach((w) => logger.warn(w));
 
+  if (config.openai.enabled && config.openai.apiKey) {
+    logger.success('ChatGPT activo — responderá preguntas complejas', {
+      model: config.openai.model,
+      soloPreguntas: config.openai.onlyQuestions,
+    });
+  }
+
   logger.info('Iniciando bot...', {
     entorno: config.nodeEnv,
     timezone: config.cron.timezone,

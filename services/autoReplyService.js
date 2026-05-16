@@ -1,5 +1,5 @@
 /**
- * Servicio de respuestas automáticas por palabras clave.
+ * Servicio de respuestas automáticas por palabras clave + OpenAI.
  */
 
 const { keywords } = require('../config/keywords');
@@ -38,18 +38,27 @@ function findKeywordResponse(messageBody) {
 
 /**
  * Procesa un mensaje entrante y devuelve la respuesta a enviar (o null).
+ * Prioridad: 1) palabras clave  2) ChatGPT (preguntas complejas)
  */
 async function getAutoReply(message) {
-  // Ignorar mensajes propios, de estado o sin cuerpo
   if (message.fromMe || !message.body) {
     return null;
   }
 
-  // Ignorar broadcasts y estados
   if (message.from === 'status@broadcast') {
     return null;
   }
 
+  // Comando para reiniciar conversación con ChatGPT
+  const resetCmd = message.body.trim().toLowerCase();
+  if (['!reset', 'reiniciar', 'reiniciar chat'].includes(resetCmd)) {
+    if (openaiService.isEnabled()) {
+      openaiService.clearHistory(message.from);
+      return 'Conversación reiniciada. ¿En qué puedo ayudarte?';
+    }
+  }
+
+  // 1. Respuestas fijas por palabra clave (siempre tienen prioridad)
   const keywordReply = findKeywordResponse(message.body);
 
   if (keywordReply) {
@@ -60,12 +69,17 @@ async function getAutoReply(message) {
     return keywordReply;
   }
 
-  // Integración futura con OpenAI si está habilitada
+  // 2. ChatGPT para preguntas complejas
   if (openaiService.isEnabled()) {
-    const aiReply = await openaiService.generateReply(message.body);
-    if (aiReply) {
-      logger.info('Respuesta generada por OpenAI', { from: message.from });
-      return aiReply;
+    const chatId = message.from;
+
+    if (openaiService.shouldUseAI(message.body, chatId)) {
+      const aiReply = await openaiService.generateReply(message.body, chatId);
+
+      if (aiReply) {
+        logger.info('Respuesta generada por ChatGPT', { from: chatId });
+        return aiReply;
+      }
     }
   }
 

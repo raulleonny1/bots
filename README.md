@@ -12,7 +12,7 @@ Bot profesional de WhatsApp con **respuestas automáticas por palabras clave** y
 - Mensaje diario programado a las 8:00 AM
 - Reconexión automática si se pierde la conexión
 - Anti-crash y manejo de errores async
-- Estructura modular lista para OpenAI API
+- **ChatGPT (OpenAI)** para preguntas complejas (opcional)
 - Variables de entorno con `dotenv`
 
 ---
@@ -29,18 +29,20 @@ bots/
 ├── config/
 │   ├── env.js               # Variables de entorno
 │   ├── client.js            # Cliente WhatsApp
-│   └── keywords.js          # Palabras clave y respuestas
+│   ├── keywords.js          # Palabras clave y respuestas
+│   └── openai.js            # Prompt y reglas de ChatGPT
 ├── handlers/
 │   ├── messageHandler.js    # Listener de mensajes
 │   └── connectionHandler.js   # QR, ready, reconexión
 ├── services/
 │   ├── autoReplyService.js  # Lógica de auto-respuesta
 │   ├── schedulerService.js    # Mensajes programados (cron)
-│   └── openaiService.js     # Stub para OpenAI (futuro)
+│   └── openaiService.js     # Integración ChatGPT
 ├── utils/
 │   ├── logger.js            # Logs en consola
 │   ├── asyncHandler.js      # Errores async seguros
-│   └── phone.js             # Formato de números/chatId
+│   ├── phone.js             # Formato de números/chatId
+│   └── complexMessage.js    # Detecta preguntas complejas
 └── sessions/                # Datos de sesión (ignorado por Git)
 ```
 
@@ -183,19 +185,44 @@ SCHEDULED_RECIPIENTS=120363123456789012@g.us
 
 ---
 
-## Integración futura con OpenAI
+## ChatGPT (OpenAI) — Preguntas complejas
 
-1. Obtén API key en [OpenAI](https://platform.openai.com)
+El bot usa **palabras clave primero**; si no hay coincidencia y el mensaje parece una pregunta elaborada, consulta ChatGPT.
+
+### Activar
+
+1. Crea una API key en [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
 2. En `.env`:
 
 ```env
 OPENAI_ENABLED=true
-OPENAI_API_KEY=sk-tu-clave-aqui
+OPENAI_API_KEY=sk-proj-tu-clave-real
 OPENAI_MODEL=gpt-4o-mini
 ```
 
-3. Instala el SDK: `npm install openai`
-4. Implementa el código comentado en `services/openaiService.js`
+3. Reinicia: `npm start`
+
+### Qué cuenta como "pregunta compleja"
+
+- Contiene `?` o `¿`
+- Es suficientemente larga (por defecto 25+ caracteres)
+- Incluye palabras como *cómo*, *qué*, *biblia*, *oración*, etc.
+
+Los saludos cortos (`hola`, `gracias`) **no** consumen la API.
+
+### Comandos útiles en WhatsApp
+
+| Mensaje | Efecto |
+|---------|--------|
+| `reiniciar` | Borra el historial de ChatGPT para ese chat |
+
+### Personalizar el tono
+
+Edita el prompt en `config/openai.js` o define `OPENAI_SYSTEM_PROMPT` en `.env`.
+
+### Volver atrás (sin ChatGPT)
+
+Ver [RESTORE_POINT.md](RESTORE_POINT.md) o ejecuta `.\scripts\restore-pre-openai.ps1`
 
 ---
 
