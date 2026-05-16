@@ -5,10 +5,17 @@
 
 const { config, validateConfig } = require('./config/env');
 const { createWhatsAppClient } = require('./config/client');
-const { registerConnectionHandlers } = require('./handlers/connectionHandler');
+const {
+  registerConnectionHandlers,
+  setReconnectAllowed,
+} = require('./handlers/connectionHandler');
 const logger = require('./utils/logger');
 const { safeAsync } = require('./utils/asyncHandler');
 const { stopScheduler } = require('./services/schedulerService');
+const settingsService = require('./services/settingsService');
+const botStateService = require('./services/botStateService');
+const { startWebServer } = require('./web/server');
+const whatsappControl = require('./services/whatsappControl');
 
 // ─── Anti-crash: captura errores globales ────────────────────────────────────
 
@@ -24,12 +31,17 @@ process.on('uncaughtException', (error) => {
     message: error.message,
     stack: error.stack,
   });
-  // En producción podrías usar process.exit(1) tras un graceful shutdown
 });
 
 // ─── Cierre limpio (Ctrl+C, PM2 stop, etc.) ──────────────────────────────────
 
+let isShuttingDown = false;
+
 async function gracefulShutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  setReconnectAllowed(false);
   logger.warn(`Señal ${signal} recibida. Cerrando bot...`);
 
   stopScheduler();
@@ -47,6 +59,34 @@ async function gracefulShutdown(signal) {
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
+// ─── Cliente WhatsApp ─────────────────────────────────────────────────────────
+
+/**
+ * Crea, registra handlers e inicializa el cliente.
+ * Usado al arranque y en reconexiones.
+ */
+async function bootClient() {
+  if (isShuttingDown) return;
+
+  const previous = global.whatsappClient;
+
+  if (previous) {
+    setReconnectAllowed(false);
+    await safeAsync(async () => {
+      await previous.destroy();
+    }, 'Destruir cliente anterior');
+    setReconnectAllowed(true);
+  }
+
+  const client = createWhatsAppClient();
+  global.whatsappClient = client;
+
+  registerConnectionHandlers(client, bootClient);
+
+  await client.initialize();
+  logger.info('Cliente inicializado — esperando QR o sesión guardada...');
+}
+
 // ─── Inicio del bot ──────────────────────────────────────────────────────────
 
 async function startBot() {
@@ -58,27 +98,31 @@ async function startBot() {
   warnings.forEach((w) => logger.warn(w));
 
   if (config.openai.enabled && config.openai.apiKey) {
-    logger.success('ChatGPT activo — responderá preguntas complejas', {
+    logger.success('ChatGPT activo — solo temas de iglesia', {
       model: config.openai.model,
       soloPreguntas: config.openai.onlyQuestions,
+      soloIglesia: config.openai.churchTopicsOnly,
     });
   }
 
-  logger.info('Iniciando bot...', {
-    entorno: config.nodeEnv,
-    timezone: config.cron.timezone,
-    mensajeDiario: `${config.cron.dailyHour}:${String(config.cron.dailyMinute).padStart(2, '0')}`,
-  });
+  settingsService.loadSettings();
 
-  const client = createWhatsAppClient();
-  global.whatsappClient = client;
+  whatsappControl.registerBootClient(bootClient);
 
-  registerConnectionHandlers(client);
+  startWebServer();
 
-  await safeAsync(async () => {
-    await client.initialize();
-    logger.info('Cliente inicializado — esperando QR o sesión guardada...');
-  }, 'Inicialización del cliente WhatsApp');
+  if (config.autoConnectWhatsApp) {
+    setReconnectAllowed(true);
+    botStateService.updateState({ status: 'loading' });
+    logger.info('PC servidor: conectando WhatsApp automaticamente (sesion guardada)...');
+    await safeAsync(bootClient, 'Inicialización del cliente WhatsApp');
+  } else {
+    setReconnectAllowed(false);
+    botStateService.setDisconnected('esperando_conexion_desde_panel');
+    logger.info('WhatsApp en espera — pulsa Conectar en el panel admin');
+  }
 }
+
+module.exports = { bootClient };
 
 startBot();

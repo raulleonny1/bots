@@ -187,7 +187,7 @@ SCHEDULED_RECIPIENTS=120363123456789012@g.us
 
 ## ChatGPT (OpenAI) — Preguntas complejas
 
-El bot usa **palabras clave primero**; si no hay coincidencia y el mensaje parece una pregunta elaborada, consulta ChatGPT.
+El bot usa **palabras clave primero**; si no hay coincidencia y el mensaje es una pregunta sobre **la iglesia o la fe**, consulta ChatGPT. Preguntas ajenas (deportes, tecnología, etc.) reciben un mensaje amable sin gastar la API.
 
 ### Activar
 
@@ -202,13 +202,21 @@ OPENAI_MODEL=gpt-4o-mini
 
 3. Reinicia: `npm start`
 
-### Qué cuenta como "pregunta compleja"
+### Qué responde ChatGPT
 
-- Contiene `?` o `¿`
-- Es suficientemente larga (por defecto 25+ caracteres)
-- Incluye palabras como *cómo*, *qué*, *biblia*, *oración*, etc.
+Debe ser **pregunta compleja** Y **tema de iglesia**, por ejemplo:
 
-Los saludos cortos (`hola`, `gracias`) **no** consumen la API.
+- ¿Qué significa la fe en tiempos difíciles?
+- ¿Cómo puedo unirme al grupo de jóvenes?
+- ¿Tienen estudio bíblico?
+
+**No responde** (mensaje automático sin API):
+
+- ¿Quién ganó el partido de ayer?
+- ¿Cómo programo en Python?
+
+Palabras clave de iglesia en `config/openai.js` → `churchTopicKeywords`.  
+Para desactivar el filtro: `OPENAI_CHURCH_TOPICS_ONLY=false` en `.env`.
 
 ### Comandos útiles en WhatsApp
 

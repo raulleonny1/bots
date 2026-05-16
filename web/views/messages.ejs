@@ -1,0 +1,112 @@
+﻿<%- include('partials/head') %>
+<%- include('partials/nav') %>
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <h2 class="mb-0">
+    <i class="bi bi-chat-dots text-primary"></i> Mensajes
+    <span id="liveBadge" class="badge bg-secondary ms-2">Conectando...</span>
+  </h2>
+  <form method="POST" action="/messages/clear" onsubmit="return confirm('Borrar historial del panel?');">
+    <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i> Limpiar</button>
+  </form>
+</div>
+
+<div class="btn-group mb-3">
+  <a href="/messages?direction=all" class="btn btn-sm <%= direction === 'all' ? 'btn-primary' : 'btn-outline-primary' %>">Todos</a>
+  <a href="/messages?direction=in" class="btn btn-sm <%= direction === 'in' ? 'btn-primary' : 'btn-outline-primary' %>">Entrantes</a>
+  <a href="/messages?direction=out" class="btn btn-sm <%= direction === 'out' ? 'btn-primary' : 'btn-outline-primary' %>">Salientes</a>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-4"><div class="card shadow-sm"><div class="card-body py-2"><small>Total</small><strong class="d-block" id="statTotal"><%= stats.total %></strong></div></div></div>
+  <div class="col-md-4"><div class="card shadow-sm"><div class="card-body py-2"><small>Entrantes</small><strong class="d-block" id="statIncoming"><%= stats.incoming %></strong></div></div></div>
+  <div class="col-md-4"><div class="card shadow-sm"><div class="card-body py-2"><small>Salientes</small><strong class="d-block" id="statOutgoing"><%= stats.outgoing %></strong></div></div></div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="table-responsive" style="max-height: 70vh; overflow-y: auto;">
+    <table class="table table-hover table-messages mb-0">
+      <thead class="table-light sticky-top">
+        <tr>
+          <th>Hora</th>
+          <th>Tipo</th>
+          <th>Chat</th>
+          <th>Mensaje</th>
+        </tr>
+      </thead>
+      <tbody id="messagesBody">
+        <% if (!messages.length) { %>
+        <tr id="emptyRow"><td colspan="4" class="text-center text-muted py-4">Esperando mensajes... Escribe al numero del bot desde otro telefono.</td></tr>
+        <% } %>
+        <% messages.forEach(function(m) { %>
+        <tr class="<%= m.direction === 'in' ? 'message-in' : 'message-out' %>" data-id="<%= m.id %>">
+          <td class="text-nowrap small"><%= new Date(m.timestamp).toLocaleString('es-ES') %></td>
+          <td>
+            <% if (m.direction === 'in') { %>
+              <span class="badge bg-primary">Entrada</span>
+            <% } else { %>
+              <span class="badge bg-success">Salida</span>
+              <% if (m.replyType) { %><span class="badge bg-secondary"><%= m.replyType %></span><% } %>
+            <% } %>
+          </td>
+          <td class="small"><%= m.chatName || m.from %></td>
+          <td><%= m.body %></td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<% const liveScript = `
+<script src="/public/js/live.js"></script>
+<script>
+const filterDirection = ${JSON.stringify(direction)};
+const seenIds = new Set([...document.querySelectorAll('#messagesBody tr[data-id]')].map(r => r.dataset.id));
+
+function updateStats(stats) {
+  if (!stats) return;
+  const t = document.getElementById('statTotal');
+  if (t) t.textContent = stats.total;
+  const i = document.getElementById('statIncoming');
+  if (i) i.textContent = stats.incoming;
+  const o = document.getElementById('statOutgoing');
+  if (o) o.textContent = stats.outgoing;
+}
+
+function rowHtml(m) {
+  const d = new Date(m.timestamp).toLocaleString('es-ES');
+  const inMsg = m.direction === 'in';
+  const tipo = inMsg
+    ? '<span class="badge bg-primary">Entrada</span>'
+  : '<span class="badge bg-success">Salida</span>' + (m.replyType ? ' <span class="badge bg-secondary">'+m.replyType+'</span>' : '');
+  const cls = inMsg ? 'message-in' : 'message-out';
+  return '<tr class="'+cls+'" data-id="'+m.id+'"><td class="text-nowrap small">'+d+'</td><td>'+tipo+'</td><td class="small">'+(m.chatName||m.from)+'</td><td>'+escapeHtml(m.body)+'</td></tr>';
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+window.onLiveMessage = function(msg, stats) {
+  if (filterDirection !== 'all' && msg.direction !== filterDirection) return;
+  if (seenIds.has(msg.id)) return;
+  seenIds.add(msg.id);
+  const empty = document.getElementById('emptyRow');
+  if (empty) empty.remove();
+  const tbody = document.getElementById('messagesBody');
+  tbody.insertAdjacentHTML('afterbegin', rowHtml(msg));
+  updateStats(stats);
+  tbody.closest('.table-responsive')?.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+window.onLiveUpdate = function(data) {
+  if (data.stats) updateStats(data.stats);
+  if (data.cleared) location.reload();
+};
+</script>`; %>
+<%- include('partials/foot', { extraScripts: liveScript }) %>
+
+

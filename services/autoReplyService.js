@@ -2,13 +2,11 @@
  * Servicio de respuestas automáticas por palabras clave + OpenAI.
  */
 
-const { keywords } = require('../config/keywords');
+const settingsService = require('./settingsService');
 const logger = require('../utils/logger');
 const openaiService = require('./openaiService');
+const menuService = require('./menuService');
 
-/**
- * Normaliza el texto del mensaje para comparación.
- */
 function normalizeText(text) {
   return text
     .toLowerCase()
@@ -17,29 +15,28 @@ function normalizeText(text) {
     .trim();
 }
 
-/**
- * Busca una respuesta por palabra clave.
- */
 function findKeywordResponse(messageBody) {
+  if (!settingsService.areKeywordRepliesEnabled()) {
+    return null;
+  }
+
   const normalized = normalizeText(messageBody);
+  const keywords = settingsService.getKeywords();
 
   for (const entry of keywords) {
-    const matched = entry.triggers.some((trigger) =>
+    const triggers = entry.triggers || [];
+    const matched = triggers.some((trigger) =>
       normalized.includes(normalizeText(trigger))
     );
 
     if (matched) {
-      return entry.response;
+      return { text: entry.response, type: 'keyword' };
     }
   }
 
   return null;
 }
 
-/**
- * Procesa un mensaje entrante y devuelve la respuesta a enviar (o null).
- * Prioridad: 1) palabras clave  2) ChatGPT (preguntas complejas)
- */
 async function getAutoReply(message) {
   if (message.fromMe || !message.body) {
     return null;
@@ -49,37 +46,69 @@ async function getAutoReply(message) {
     return null;
   }
 
-  // Comando para reiniciar conversación con ChatGPT
+  if (!settingsService.areResponsesEnabled()) {
+    return null;
+  }
+
+  const chatId = message.from;
   const resetCmd = message.body.trim().toLowerCase();
+
   if (['!reset', 'reiniciar', 'reiniciar chat'].includes(resetCmd)) {
+    menuService.clearBeliefsMode(chatId);
     if (openaiService.isEnabled()) {
-      openaiService.clearHistory(message.from);
-      return 'Conversación reiniciada. ¿En qué puedo ayudarte?';
+      openaiService.clearHistory(chatId);
     }
+    return { text: menuService.buildMenuText(), type: 'menu' };
   }
 
-  // 1. Respuestas fijas por palabra clave (siempre tienen prioridad)
-  const keywordReply = findKeywordResponse(message.body);
-
-  if (keywordReply) {
-    logger.info('Respuesta por palabra clave', {
-      from: message.from,
-      keyword: message.body.substring(0, 50),
-    });
-    return keywordReply;
+  const menuReply = menuService.getMenuReply(message.body, chatId);
+  if (menuReply) {
+    return menuReply;
   }
 
-  // 2. ChatGPT para preguntas complejas
-  if (openaiService.isEnabled()) {
-    const chatId = message.from;
-
-    if (openaiService.shouldUseAI(message.body, chatId)) {
-      const aiReply = await openaiService.generateReply(message.body, chatId);
+  // Modo creencias: tras elegir opcion con ChatGPT, responde con IA
+  if (menuService.isBeliefsMode(chatId)) {
+    if (settingsService.isOpenaiRepliesEnabled() && openaiService.isEnabled()) {
+      const aiReply = await openaiService.generateReply(message.body, chatId, {
+        beliefsMode: true,
+      });
 
       if (aiReply) {
-        logger.info('Respuesta generada por ChatGPT', { from: chatId });
-        return aiReply;
+        logger.info('Respuesta ChatGPT (modo creencias)', { from: chatId });
+        return { text: aiReply, type: 'openai-beliefs' };
       }
+
+      return {
+        text:
+          'No pude procesar tu pregunta. Asegúrate de que ChatGPT está activo en .env (OPENAI_ENABLED=true) y en el panel. Escribe *menu* para volver.',
+        type: 'system',
+      };
+    }
+
+    return {
+      text:
+        'El asistente de creencias no está disponible ahora. Activa ChatGPT en Automatizaciones y en tu archivo .env. Escribe *menu* para otras opciones.',
+      type: 'system',
+    };
+  }
+
+  const keywordMatch = findKeywordResponse(message.body);
+
+  if (keywordMatch) {
+    logger.info('Respuesta por palabra clave', {
+      from: chatId,
+      keyword: message.body.substring(0, 50),
+    });
+    return keywordMatch;
+  }
+
+  if (settingsService.isOpenaiRepliesEnabled() && openaiService.isEnabled()) {
+    const aiReply = await openaiService.generateReply(message.body, chatId);
+
+    if (aiReply) {
+      const type = openaiService.isOffTopicQuestion(message.body) ? 'offtopic' : 'openai';
+      logger.info('Respuesta generada por ChatGPT', { from: chatId, type });
+      return { text: aiReply, type };
     }
   }
 

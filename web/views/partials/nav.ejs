@@ -1,0 +1,23 @@
+﻿<nav class="navbar navbar-expand-lg navbar-dark" style="background: var(--brand-dark);">
+    <div class="container">
+    <a class="navbar-brand" href="/"><i class="bi bi-whatsapp me-2"></i><%= botName %></a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMain">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navMain">
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item"><a class="nav-link" href="/"><i class="bi bi-speedometer2 me-1"></i>Estado</a></li>
+        <li class="nav-item"><a class="nav-link" href="/messages"><i class="bi bi-chat-dots me-1"></i>Mensajes</a></li>
+        <li class="nav-item"><a class="nav-link" href="/menu"><i class="bi bi-list-check me-1"></i>Menu</a></li>
+        <li class="nav-item"><a class="nav-link" href="/automations"><i class="bi bi-gear me-1"></i>Automatizaciones</a></li>
+      </ul>
+      <form action="/logout" method="POST" class="d-flex">
+        <button class="btn btn-outline-light btn-sm" type="submit"><i class="bi bi-box-arrow-right"></i> Salir</button>
+      </form>
+    </div>
+  </div>
+</nav>
+<main class="container py-4">
+
+
+

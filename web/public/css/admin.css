@@ -1,0 +1,50 @@
+:root {
+  --brand: #25d366;
+  --brand-dark: #128c7e;
+}
+
+body {
+  background: #f4f6f9;
+  min-height: 100vh;
+}
+
+.navbar-brand {
+  font-weight: 700;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.status-ready { background: #198754; }
+.status-qr { background: #ffc107; }
+.status-disconnected { background: #dc3545; }
+.status-loading { background: #0d6efd; animation: pulse 1s infinite; }
+
+@keyframes pulse {
+  50% { opacity: 0.4; }
+}
+
+.card-stat {
+  border-left: 4px solid var(--brand);
+}
+
+.message-in { border-left: 3px solid #0d6efd; }
+.message-out { border-left: 3px solid var(--brand); }
+
+.table-messages td {
+  vertical-align: middle;
+  max-width: 320px;
+  word-break: break-word;
+}
+
+.qr-box {
+  background: #fff;
+  padding: 1rem;
+  border-radius: 8px;
+  display: inline-block;
+}

@@ -9,6 +9,9 @@ sessions/
 .wwebjs_auth/
 .wwebjs_cache/
 
+# Datos del panel admin (config editable)
+data/settings.json
+
 # Logs y temporales
 logs/
 *.log

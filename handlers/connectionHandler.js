@@ -7,17 +7,25 @@ const { config } = require('../config/env');
 const logger = require('../utils/logger');
 const { safeAsync } = require('../utils/asyncHandler');
 const { startScheduler, stopScheduler } = require('../services/schedulerService');
+const botStateService = require('../services/botStateService');
 const { registerMessageHandler } = require('./messageHandler');
 
 let reconnectAttempts = 0;
-let isReady = false;
 let messageHandlerRegistered = false;
+let reconnectAllowed = false;
 
-/**
- * Intenta reconectar el cliente tras una desconexión.
- */
-async function attemptReconnect(client, reason) {
+function setReconnectAllowed(allowed) {
+  reconnectAllowed = allowed;
+}
+
+function resetReconnectAttempts() {
+  reconnectAttempts = 0;
+  botStateService.updateState({ reconnectAttempts: 0 });
+}
+
+async function attemptReconnect(restartBot, reason) {
   if (reconnectAttempts >= config.reconnect.maxAttempts) {
+    botStateService.setDisconnected('max_reconnect_attempts');
     logger.error('Máximo de intentos de reconexión alcanzado. Reinicia el bot manualmente.', {
       attempts: reconnectAttempts,
       reason,
@@ -26,6 +34,8 @@ async function attemptReconnect(client, reason) {
   }
 
   reconnectAttempts += 1;
+  botStateService.updateState({ reconnectAttempts });
+
   const delay = config.reconnect.delayMs;
 
   logger.warn(`Reconectando en ${delay / 1000}s... (intento ${reconnectAttempts}/${config.reconnect.maxAttempts})`, {
@@ -34,16 +44,18 @@ async function attemptReconnect(client, reason) {
 
   await new Promise((resolve) => setTimeout(resolve, delay));
 
+  messageHandlerRegistered = false;
+
   await safeAsync(async () => {
-    await client.initialize();
+    if (typeof restartBot === 'function') {
+      await restartBot();
+    }
   }, 'Reconexión WhatsApp');
 }
 
-/**
- * Registra todos los eventos de conexión del cliente.
- */
-function registerConnectionHandlers(client) {
+function registerConnectionHandlers(client, restartBot) {
   client.on('qr', (qr) => {
+    botStateService.setQr(qr);
     logger.info('Escanea el código QR con WhatsApp (Dispositivos vinculados)');
     console.log('\n');
     qrcode.generate(qr, { small: true });
@@ -51,25 +63,26 @@ function registerConnectionHandlers(client) {
   });
 
   client.on('authenticated', () => {
+    botStateService.setAuthenticated();
     logger.success('Autenticación exitosa — sesión guardada');
   });
 
   client.on('auth_failure', (msg) => {
+    botStateService.setDisconnected('auth_failure');
     logger.error('Fallo de autenticación', { message: msg });
-    isReady = false;
   });
 
   client.on('ready', async () => {
-    isReady = true;
     reconnectAttempts = 0;
 
     const info = client.info;
+    botStateService.setReady(info);
+
     logger.success(`${config.botName} conectado y listo`, {
       user: info?.pushname || 'Desconocido',
       number: info?.wid?.user || 'N/A',
     });
 
-    // Registrar handler de mensajes una sola vez
     if (!messageHandlerRegistered) {
       registerMessageHandler(client);
       messageHandlerRegistered = true;
@@ -79,14 +92,27 @@ function registerConnectionHandlers(client) {
   });
 
   client.on('disconnected', async (reason) => {
-    isReady = false;
     stopScheduler();
 
+    if (!reconnectAllowed) {
+      logger.debug('Desconexión ignorada (reinicio interno del cliente)');
+      return;
+    }
+
+    botStateService.setDisconnected(reason);
     logger.warn('WhatsApp desconectado', { reason });
-    await attemptReconnect(client, reason);
+    await attemptReconnect(restartBot, reason);
   });
 
   client.on('loading_screen', (percent, message) => {
+    const current = botStateService.getState();
+    // Tras "ready", WhatsApp puede seguir emitiendo loading_screen al sincronizar;
+    // no volver a "Cargando" en el panel si ya estamos conectados.
+    if (current.status === 'ready') {
+      botStateService.updateState({ loadingPercent: percent });
+      return;
+    }
+    botStateService.updateState({ status: 'loading', loadingPercent: percent });
     logger.info(`Cargando WhatsApp Web: ${percent}% - ${message}`);
   });
 
@@ -96,13 +122,12 @@ function registerConnectionHandlers(client) {
 }
 
 function getConnectionStatus() {
-  return {
-    isReady,
-    reconnectAttempts,
-  };
+  return botStateService.getState();
 }
 
 module.exports = {
   registerConnectionHandlers,
   getConnectionStatus,
+  setReconnectAllowed,
+  resetReconnectAttempts,
 };

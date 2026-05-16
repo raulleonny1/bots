@@ -2,10 +2,10 @@
  * Integración con OpenAI (ChatGPT) para respuestas a preguntas complejas.
  */
 
-const OpenAI = require('openai');
 const { config } = require('../config/env');
 const { systemPrompt } = require('../config/openai');
 const { isComplexMessage } = require('../utils/complexMessage');
+const { isChurchRelated } = require('../utils/churchTopic');
 const logger = require('../utils/logger');
 
 /** Cliente OpenAI (singleton) */
@@ -23,6 +23,8 @@ function isEnabled() {
 
 function getClient() {
   if (!openaiClient) {
+    // Carga diferida: no requiere el paquete si OpenAI está desactivado
+    const OpenAI = require('openai');
     openaiClient = new OpenAI({ apiKey: config.openai.apiKey });
   }
   return openaiClient;
@@ -76,11 +78,35 @@ function shouldUseAI(messageBody, chatId) {
     return false;
   }
 
-  return isComplexMessage(messageBody, {
+  const isComplex = isComplexMessage(messageBody, {
     minLength: config.openai.minMessageLength,
     onlyQuestions: config.openai.onlyQuestions,
     ignoreGreetings: config.openai.ignoreGreetings,
   });
+
+  if (!isComplex) return false;
+
+  // Solo preguntas relacionadas con la iglesia
+  if (config.openai.churchTopicsOnly && !isChurchRelated(messageBody)) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * True si es pregunta compleja pero fuera del ámbito de la iglesia.
+ */
+function isOffTopicQuestion(messageBody) {
+  if (!config.openai.churchTopicsOnly) return false;
+
+  const isComplex = isComplexMessage(messageBody, {
+    minLength: config.openai.minMessageLength,
+    onlyQuestions: config.openai.onlyQuestions,
+    ignoreGreetings: config.openai.ignoreGreetings,
+  });
+
+  return isComplex && !isChurchRelated(messageBody);
 }
 
 /**
@@ -88,12 +114,29 @@ function shouldUseAI(messageBody, chatId) {
  * @param {string} userMessage
  * @param {string} chatId - ID del chat de WhatsApp
  */
-async function generateReply(userMessage, chatId = 'default') {
+async function generateReply(userMessage, chatId = 'default', options = {}) {
   if (!isEnabled()) {
     return null;
   }
 
-  if (!shouldUseAI(userMessage, chatId)) {
+  const beliefsMode = Boolean(options.beliefsMode);
+
+  if (!beliefsMode && isOffTopicQuestion(userMessage)) {
+    logger.info('Pregunta fuera de tema (no iglesia) — respuesta automática', { chatId });
+    return config.openai.offTopicMessage;
+  }
+
+  if (beliefsMode && config.openai.churchTopicsOnly && !isChurchRelated(userMessage)) {
+    logger.info('Pregunta fuera de tema en modo creencias', { chatId });
+    return config.openai.offTopicMessage;
+  }
+
+  if (!beliefsMode && !shouldUseAI(userMessage, chatId)) {
+    return null;
+  }
+
+  if (beliefsMode && isOnCooldown(chatId)) {
+    logger.debug('OpenAI en cooldown (modo creencias)', { chatId });
     return null;
   }
 
@@ -150,6 +193,7 @@ async function generateReply(userMessage, chatId = 'default') {
 module.exports = {
   isEnabled,
   shouldUseAI,
+  isOffTopicQuestion,
   generateReply,
   clearHistory,
 };

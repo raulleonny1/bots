@@ -1,0 +1,151 @@
+﻿<%- include('partials/head') %>
+<%- include('partials/nav') %>
+
+<h2 class="mb-4"><i class="bi bi-gear text-success"></i> Automatizaciones</h2>
+
+<% if (saved) { %>
+<div class="alert alert-success alert-dismissible fade show">
+  Cambios guardados correctamente.
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+<% } %>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-header bg-white fw-semibold">Respuestas automaticas</div>
+  <div class="card-body">
+    
+    <div class="row g-3">
+      <div class="col-md-3 col-6">
+        <form method="POST" action="/settings/toggle">
+          <input type="hidden" name="field" value="menuEnabled">
+          <input type="hidden" name="value" value="<%= settings.menuEnabled !== false ? 'false' : 'true' %>">
+          <label class="form-label">Menu hola / 1-5</label>
+          <button type="submit" class="btn w-100 <%= settings.menuEnabled !== false ? 'btn-success' : 'btn-outline-secondary' %>">
+            <%= settings.menuEnabled !== false ? 'Activado' : 'Desactivado' %>
+          </button>
+        </form>
+      </div>
+      <div class="col-md-3 col-6">
+        <form method="POST" action="/settings/toggle">
+          <input type="hidden" name="field" value="responsesEnabled">
+          <input type="hidden" name="value" value="<%= settings.responsesEnabled ? 'false' : 'true' %>">
+          <label class="form-label">Master</label>
+          <button type="submit" class="btn w-100 <%= settings.responsesEnabled ? 'btn-success' : 'btn-outline-secondary' %>">
+            <%= settings.responsesEnabled ? 'Activado' : 'Desactivado' %>
+          </button>
+        </form>
+      </div>
+      <div class="col-md-3 col-6">
+        <form method="POST" action="/settings/toggle">
+          <input type="hidden" name="field" value="keywordRepliesEnabled">
+          <input type="hidden" name="value" value="<%= settings.keywordRepliesEnabled ? 'false' : 'true' %>">
+          <label class="form-label">Palabras clave</label>
+          <button type="submit" class="btn w-100 <%= settings.keywordRepliesEnabled ? 'btn-success' : 'btn-outline-secondary' %>">
+            <%= settings.keywordRepliesEnabled ? 'Activado' : 'Desactivado' %>
+          </button>
+        </form>
+      </div>
+      <div class="col-md-3 col-6">
+        <form method="POST" action="/settings/toggle" id="openaiForm">
+          <label class="form-label">ChatGPT</label>
+          <select name="value" class="form-select" onchange="document.getElementById('openaiField').value='openaiRepliesEnabled'; this.form.submit();">
+            <option value="env" <%= settings.openaiRepliesEnabled === null ? 'selected' : '' %>>Segun .env</option>
+            <option value="true" <%= settings.openaiRepliesEnabled === true ? 'selected' : '' %>>Forzar ON</option>
+            <option value="false" <%= settings.openaiRepliesEnabled === false ? 'selected' : '' %>>Forzar OFF</option>
+          </select>
+          <input type="hidden" name="field" id="openaiField" value="openaiRepliesEnabled">
+        </form>
+        <small class="text-muted">.env OpenAI: <%= config.openaiEnvEnabled ? 'ON' : 'OFF' %></small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4 border-primary">
+  <div class="card-header bg-primary text-white fw-semibold d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-list-ol me-2"></i> Menu de bienvenida</span>
+    <a href="/menu" class="btn btn-sm btn-light">Editar menu</a>
+  </div>
+  <div class="card-body small">
+    <p class="mb-2">Cuando alguien escribe un saludo configurado (por ejemplo <strong>hola</strong>), el bot envia el menu con opciones numeradas.</p>
+    <p class="text-muted mb-0">Puedes cambiar textos, anadir opciones y activar ChatGPT para creencias en <a href="/menu">Editar menu</a>.</p>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+    <span>Palabras clave</span>
+    <button type="button" class="btn btn-sm btn-outline-success" id="addKeyword"><i class="bi bi-plus"></i> Anadir</button>
+  </div>
+  <div class="card-body">
+    <form method="POST" action="/settings/keywords" id="keywordsForm">
+      
+      <div id="keywordRows">
+        <% (settings.keywords || []).forEach(function(k, i) { %>
+        
+        <div class="row g-2 mb-2 keyword-row">
+          <div class="col-md-5">
+            <input type="text" name="triggers" class="form-control form-control-sm" placeholder="horario, culto" value="<%= (k.triggers || []).join(', ') %>">
+          </div>
+          <div class="col-md-6">
+            <input type="text" name="responses" class="form-control form-control-sm" placeholder="Respuesta" value="<%= k.response %>">
+          </div>
+          <div class="col-md-1">
+            <button type="button" class="btn btn-sm btn-outline-danger w-100 remove-row">&times;</button>
+          </div>
+        </div>
+        <% }); %>
+      </div>
+      <button type="submit" class="btn btn-success mt-2"><i class="bi bi-save"></i> Guardar palabras clave</button>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-header bg-white fw-semibold">Mensaje programado diario</div>
+  <div class="card-body">
+    <form method="POST" action="/settings/daily">
+      
+      <div class="mb-3">
+        <label class="form-label">Texto del mensaje</label>
+        <textarea name="text" class="form-control" rows="3" required><%= settings.dailyMessage.text %></textarea>
+      </div>
+      <div class="row g-2 mb-3">
+        <div class="col-md-3">
+          <label class="form-label">Hora (0-23)</label>
+          <input type="number" name="hour" class="form-control" min="0" max="23" value="<%= settings.dailyMessage.hour %>" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Minuto</label>
+          <input type="number" name="minute" class="form-control" min="0" max="59" value="<%= settings.dailyMessage.minute %>" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Zona horaria (.env)</label>
+          <input type="text" class="form-control" value="<%= config.timezone %>" disabled>
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Destinatarios (numeros separados por coma)</label>
+        <input type="text" name="recipients" class="form-control" value="<%= (settings.dailyMessage.recipients || []).join(', ') %>" placeholder="34612345678">
+      </div>
+      <button type="submit" class="btn btn-success"><i class="bi bi-save"></i> Guardar mensaje diario</button>
+    </form>
+  </div>
+</div>
+
+<% const autoScript = `<script>
+document.getElementById('addKeyword')?.addEventListener('click', () => {
+  const row = document.createElement('div');
+  row.className = 'row g-2 mb-2 keyword-row';
+  row.innerHTML = '<div class="col-md-5"><input type="text" name="triggers" class="form-control form-control-sm" placeholder="palabra"></div><div class="col-md-6"><input type="text" name="responses" class="form-control form-control-sm" placeholder="Respuesta"></div><div class="col-md-1"><button type="button" class="btn btn-sm btn-outline-danger w-100 remove-row">&times;</button></div>';
+  document.getElementById('keywordRows').appendChild(row);
+});
+document.getElementById('keywordRows')?.addEventListener('click', (e) => {
+  if (e.target.classList.contains('remove-row')) e.target.closest('.keyword-row')?.remove();
+});
+</script>`; %>
+<%- include('partials/foot', { extraScripts: autoScript }) %>
+
+
+
+

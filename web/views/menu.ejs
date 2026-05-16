@@ -1,0 +1,114 @@
+<%- include('partials/head') %>
+<%- include('partials/nav') %>
+
+<h2 class="mb-4"><i class="bi bi-list-check text-primary"></i> Editar menu del bot</h2>
+
+<% if (saved) { %>
+<div class="alert alert-success alert-dismissible fade show">
+  Menu guardado. Los cambios ya estan activos en WhatsApp.
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+<% } %>
+
+<div class="alert alert-info small">
+  <strong>ChatGPT para creencias:</strong>
+  Marca la casilla <em>Usa ChatGPT</em> en una opcion (por ejemplo "creencias de la iglesia").
+  Cuando el usuario elija ese numero, podra hacer preguntas y el bot respondera con IA
+  (solo temas de fe e iglesia).
+  <% if (!config.openaiEnvEnabled) { %>
+  <br><span class="text-danger">Ahora mismo OPENAI_ENABLED=false en .env — activalo para que funcione.</span>
+  <% } else if (!config.openaiPanelEnabled) { %>
+  <br><span class="text-warning">Activa ChatGPT en Automatizaciones (Forzar ON o Segun .env).</span>
+  <% } %>
+</div>
+
+<form method="POST" action="/settings/menu">
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white fw-semibold">Saludo y menu</div>
+    <div class="card-body">
+      <div class="mb-3">
+        <label class="form-label">Saludos que muestran el menu (separados por coma)</label>
+        <input type="text" name="greetings" class="form-control" value="<%= (menu.greetings || []).join(', ') %>" placeholder="hola, buenos dias, buenas tardes">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Texto de bienvenida (antes de las opciones)</label>
+        <textarea name="intro" class="form-control" rows="4" required><%= menu.intro %></textarea>
+      </div>
+      <div class="mb-0">
+        <label class="form-label">Texto al final del menu</label>
+        <input type="text" name="footer" class="form-control" value="<%= menu.footer %>">
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+      <span>Opciones del menu (1, 2, 3...)</span>
+      <button type="button" class="btn btn-sm btn-outline-primary" id="addOption"><i class="bi bi-plus"></i> Anadir opcion</button>
+    </div>
+    <div class="card-body" id="optionsContainer">
+      <% (menu.options || []).forEach(function(opt, i) { %>
+      <div class="border rounded p-3 mb-3 option-block">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <strong>Opcion <%= i + 1 %></strong>
+          <button type="button" class="btn btn-sm btn-outline-danger remove-option">&times; Quitar</button>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Titulo (lo que ve el usuario en el menu)</label>
+          <input type="text" name="labels" class="form-control" value="<%= opt.label %>" required>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Respuesta al elegir esta opcion</label>
+          <textarea name="responses" class="form-control" rows="4" required><%= opt.response %></textarea>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="useOpenAI" value="<%= i %>" id="openai<%= i %>" <%= opt.useOpenAI ? 'checked' : '' %>>
+          <label class="form-check-label" for="openai<%= i %>">
+            Usa ChatGPT despues (para preguntas sobre creencias / fe)
+          </label>
+        </div>
+      </div>
+      <% }); %>
+    </div>
+  </div>
+
+  <button type="submit" class="btn btn-success btn-lg"><i class="bi bi-save"></i> Guardar menu</button>
+  <a href="/automations" class="btn btn-outline-secondary btn-lg ms-2">Volver</a>
+</form>
+
+<% const menuScript = `
+<script>
+let optionIndex = ${(menu.options || []).length};
+
+document.getElementById('addOption')?.addEventListener('click', () => {
+  const container = document.getElementById('optionsContainer');
+  const i = optionIndex++;
+  const html = \`
+  <div class="border rounded p-3 mb-3 option-block">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <strong>Opcion \${i + 1}</strong>
+      <button type="button" class="btn btn-sm btn-outline-danger remove-option">&times; Quitar</button>
+    </div>
+    <div class="mb-2">
+      <label class="form-label">Titulo</label>
+      <input type="text" name="labels" class="form-control" required>
+    </div>
+    <div class="mb-2">
+      <label class="form-label">Respuesta</label>
+      <textarea name="responses" class="form-control" rows="4" required></textarea>
+    </div>
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="useOpenAI" value="\${i}">
+      <label class="form-check-label">Usa ChatGPT despues</label>
+    </div>
+  </div>\`;
+  container.insertAdjacentHTML('beforeend', html);
+});
+
+document.getElementById('optionsContainer')?.addEventListener('click', (e) => {
+  if (e.target.classList.contains('remove-option')) {
+    e.target.closest('.option-block')?.remove();
+  }
+});
+</script>`; %>
+<%- include('partials/foot', { extraScripts: menuScript }) %>
