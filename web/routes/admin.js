@@ -10,6 +10,7 @@ const messageStore = require('../../services/messageStore');
 const botStateService = require('../../services/botStateService');
 const { restartScheduler } = require('../../services/schedulerService');
 const whatsappControl = require('../../services/whatsappControl');
+const { getPanelUrls } = require('../../utils/networkAddresses');
 const { requireAuth, redirectIfAuthenticated, handleLogin } = require('../middleware/auth');
 
 async function botWithQr() {
@@ -31,10 +32,13 @@ async function botWithQr() {
 const router = express.Router();
 
 function getDashboardData() {
+  const port = config.admin.port;
   return {
     bot: botStateService.getState(),
     settings: settingsService.getSettings(),
     stats: messageStore.getStats(),
+    panelUrls: getPanelUrls(port),
+    localPanelUrl: `http://localhost:${port}`,
     config: {
       botName: config.botName,
       openaiEnvEnabled: config.openai.enabled,

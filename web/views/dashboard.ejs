@@ -7,6 +7,17 @@
   <p>Control de WhatsApp y conexi&oacute;n del servidor <span id="liveBadge" class="badge bg-secondary ms-1">Comprobando...</span></p>
 </div>
 
+<div class="alert alert-info alert-elegant small mb-4">
+  <strong><i class="bi bi-wifi me-1"></i> Acceso desde otro PC (misma WiFi)</strong><br>
+  PC del bot: <code><%= localPanelUrl %></code>
+  <% if (panelUrls && panelUrls.length) { %> &mdash;
+  <% panelUrls.forEach(function(url, i) { %><% if (i) { %>, <% } %><a href="<%= url %>" class="alert-link" target="_blank" rel="noopener"><%= url %></a><% }); %>
+  <% } %>
+  <br><br>
+  No hace falta escanear el QR en el port&aacute;til. El QR solo en el PC donde corre el bot.
+  Si arriba dice <strong>WhatsApp conectado</strong>, el bot ya funciona. <em>Conectar</em> desactivado es normal en ese caso.
+</div>
+
 <div class="card shadow-sm mb-4 border-secondary">
   <div class="card-header bg-white fw-semibold">
     <i class="bi bi-power me-2"></i> Control del sistema
@@ -19,7 +30,7 @@
     </p>
     <div class="d-flex flex-wrap gap-2">
       <% const canDisconnect = ['ready','qr','loading','authenticating'].includes(bot.status); %>
-      <% const canConnect = bot.status === 'disconnected'; %>
+      <% const canConnect = bot.status !== 'ready'; %>
       <button type="button" class="btn btn-danger" id="btnDisconnect" <%= canDisconnect ? '' : 'disabled' %>>
         <i class="bi bi-plug-fill"></i> Desconectar WhatsApp
       </button>
@@ -164,16 +175,20 @@ const labels = { ready:'Conectado', qr:'Esperando QR', disconnected:'Desconectad
 
 function updateControlButtons(s) {
   const active = ['ready','qr','loading','authenticating'].includes(s.status);
-  const off = s.status === 'disconnected';
+  const canConnect = s.status !== 'ready';
   const hint = document.getElementById('controlHint');
   document.querySelectorAll('#btnDisconnect,#btnDisconnect2').forEach(b => { if (b) b.disabled = !active; });
-  document.querySelectorAll('#btnConnect,#btnReconnect').forEach(b => { if (b) b.disabled = !off; });
+  document.querySelectorAll('#btnConnect,#btnReconnect').forEach(b => { if (b) b.disabled = !canConnect; });
   if (hint) {
-    if (s.status === 'ready') hint.textContent = 'WhatsApp activo ? el bot responde mensajes.';
-    else if (off) hint.textContent = 'Sistema apagado ? pulsa Conectar WhatsApp para iniciar la sesion.';
-    else if (s.status === 'loading' || s.status === 'authenticating') hint.textContent = 'Conectando, espera unos segundos...';
-    else if (s.status === 'qr') hint.textContent = 'Escanea el QR abajo o desconecta si quieres cancelar.';
-    else hint.textContent = '';
+    if (s.status === 'ready') {
+      hint.textContent = 'WhatsApp activo en el PC servidor. Desde otro PC solo supervisas; no hace falta Conectar ni escanear QR aqui.';
+    } else if (s.status === 'disconnected') {
+      hint.textContent = 'WhatsApp apagado en el PC servidor. Pulsa Conectar (el QR aparece en ESTE panel, en el PC de la iglesia).';
+    } else if (s.status === 'loading' || s.status === 'authenticating') {
+      hint.textContent = 'Conectando en el PC servidor, espera unos segundos...';
+    } else if (s.status === 'qr') {
+      hint.textContent = 'Escanea el QR con el celular (en el PC donde corre el bot, no hace falta en otros PCs).';
+    } else hint.textContent = '';
   }
 }
 
@@ -226,7 +241,7 @@ async function postAction(url, confirmMsg) {
     }
   } catch (e) {
     const msg = e.message === 'Failed to fetch'
-      ? 'No se pudo contactar al servidor. Comprueba que en este PC esta ejecutandose: npm run dev'
+      ? 'No se pudo contactar al PC del bot. Comprueba la IP (http://IP-del-PC:3000), que npm run dev sigue activo y el firewall permite el puerto 3000.'
       : ('Error: ' + e.message);
     alert(msg);
   }
