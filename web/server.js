@@ -4,7 +4,9 @@
 
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const session = require('express-session');
+const FileStore = require('session-file-store')(session);
 const { config } = require('../config/env');
 const settingsService = require('../services/settingsService');
 const { restartScheduler } = require('../services/schedulerService');
@@ -13,7 +15,9 @@ const { getPanelUrls } = require('../utils/networkAddresses');
 const adminRoutes = require('./routes/admin');
 
 function startWebServer() {
-  settingsService.loadSettings();
+  if (!settingsService.getSettings()) {
+    settingsService.loadSettings();
+  }
 
   settingsService.setOnSettingsChange(() => {
     if (global.whatsappClient && botIsReady()) {
@@ -31,14 +35,23 @@ function startWebServer() {
   app.use(express.json());
   app.use('/public', express.static(path.join(__dirname, 'public')));
 
+  const sessionDir = path.resolve(__dirname, '..', 'data', 'admin-sessions');
+  fs.mkdirSync(sessionDir, { recursive: true });
+
   app.use(
     session({
+      store: new FileStore({
+        path: sessionDir,
+        ttl: 86400,
+        retries: 0,
+      }),
       secret: config.admin.sessionSecret,
       resave: false,
       saveUninitialized: false,
       cookie: {
         maxAge: 24 * 60 * 60 * 1000,
         httpOnly: true,
+        sameSite: 'lax',
       },
     })
   );

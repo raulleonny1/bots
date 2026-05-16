@@ -4,6 +4,10 @@ node_modules/
 # Variables de entorno (nunca subir secretos)
 .env
 
+# Firebase cuenta de servicio (secretos)
+firebase-service-account.json
+*-firebase-adminsdk-*.json
+
 # Sesiones de WhatsApp Web (datos sensibles)
 sessions/
 .wwebjs_auth/
@@ -11,6 +15,7 @@ sessions/
 
 # Datos del panel admin (config editable)
 data/settings.json
+data/admin-sessions/
 
 # Logs y temporales
 logs/

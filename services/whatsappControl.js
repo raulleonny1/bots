@@ -13,6 +13,7 @@ const {
   resetReconnectAttempts,
 } = require('../handlers/connectionHandler');
 const { stopScheduler } = require('./schedulerService');
+const settingsService = require('./settingsService');
 
 let bootClientFn = null;
 
@@ -42,6 +43,7 @@ async function disconnect() {
 
   logger.info('Desconexion manual solicitada desde el panel');
 
+  settingsService.setWhatsappKeepConnected(false);
   setReconnectAllowed(false);
   stopScheduler();
   resetReconnectAttempts();
@@ -75,6 +77,7 @@ async function connect() {
     throw new Error('Bot no inicializado');
   }
 
+  settingsService.setWhatsappKeepConnected(true);
   setReconnectAllowed(true);
   resetReconnectAttempts();
   botStateService.updateState({ status: 'loading' });

@@ -8,6 +8,8 @@ const { config } = require('../config/env');
 const { keywords: defaultKeywords } = require('../config/keywords');
 const { defaultMenu } = require('../config/menu');
 const logger = require('../utils/logger');
+const firestoreService = require('./firestoreService');
+const { initFirebase } = require('../config/firebase');
 
 const DATA_DIR = path.resolve(__dirname, '..', 'data');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
@@ -29,8 +31,18 @@ function defaultSettings() {
       minute: config.cron.dailyMinute,
       recipients: [...config.cron.recipients],
     },
+    /** Si true, al reiniciar el servidor se vuelve a conectar WhatsApp (salvo Desconectar manual) */
+    whatsappKeepConnected: false,
     updatedAt: new Date().toISOString(),
   };
+}
+
+function setWhatsappKeepConnected(keep) {
+  saveSettings({ whatsappKeepConnected: Boolean(keep) });
+}
+
+function shouldKeepWhatsAppConnected() {
+  return getSettings().whatsappKeepConnected === true;
 }
 
 function ensureDataDir() {
@@ -93,6 +105,46 @@ function saveSettingsToDisk() {
   fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf8');
 }
 
+async function persistSettings() {
+  saveSettingsToDisk();
+  if (firestoreService.isFirebaseReady()) {
+    await firestoreService.saveSettings(settings);
+  }
+}
+
+/**
+ * Carga settings locales y sincroniza con Firestore si está activo.
+ */
+async function init() {
+  loadSettings();
+  initFirebase();
+
+  if (!firestoreService.isFirebaseReady()) {
+    return settings;
+  }
+
+  try {
+    const remote = await firestoreService.getSettings();
+    if (remote && remote.updatedAt) {
+      settings = { ...defaultSettings(), ...remote };
+      settings.keywords = remote.keywords || defaultSettings().keywords;
+      settings.dailyMessage = { ...defaultSettings().dailyMessage, ...remote.dailyMessage };
+      settings.menu = mergeMenu(remote.menu);
+      saveSettingsToDisk();
+      logger.info('Configuracion cargada desde Firebase');
+    } else {
+      await firestoreService.saveSettings(getSettings());
+      logger.info('Configuracion subida a Firebase por primera vez');
+    }
+  } catch (error) {
+    logger.warn('Firebase settings no disponible, usando archivo local', {
+      message: error.message,
+    });
+  }
+
+  return settings;
+}
+
 function getSettings() {
   if (!settings) loadSettings();
   return settings;
@@ -119,6 +171,11 @@ function saveSettings(partial) {
   }
 
   saveSettingsToDisk();
+  if (firestoreService.isFirebaseReady()) {
+    firestoreService.saveSettings(settings).catch((err) => {
+      logger.error('Error guardando settings en Firebase', { message: err.message });
+    });
+  }
 
   if (typeof onSettingsChange === 'function') {
     clearTimeout(saveSettings._debounce);
@@ -157,8 +214,11 @@ function setOnSettingsChange(fn) {
 }
 
 module.exports = {
+  init,
   loadSettings,
   getSettings,
+  setWhatsappKeepConnected,
+  shouldKeepWhatsAppConnected,
   getMenuConfig,
   saveSettings,
   areResponsesEnabled,

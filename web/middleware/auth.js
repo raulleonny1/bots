@@ -17,13 +17,18 @@ function getAdminPassword() {
   return String(process.env.ADMIN_PASSWORD || config.admin.password).trim();
 }
 
+function isApiRequest(req) {
+  const url = req.originalUrl || req.url || '';
+  return url.startsWith('/api/');
+}
+
 function requireAuth(req, res, next) {
   if (req.session?.authenticated) {
     return next();
   }
 
-  if (req.path.startsWith('/api/')) {
-    return res.status(401).json({ error: 'No autorizado' });
+  if (isApiRequest(req)) {
+    return res.status(401).json({ ok: false, error: 'No autorizado' });
   }
 
   return res.redirect('/login');
@@ -42,7 +47,15 @@ function handleLogin(req, res) {
 
   if (password && password === expected) {
     req.session.authenticated = true;
-    return res.redirect('/');
+    return req.session.save((err) => {
+      if (err) {
+        return res.render('login', {
+          error: 'Error al guardar la sesión. Intenta de nuevo.',
+          title: 'Iniciar sesión',
+        });
+      }
+      return res.redirect('/');
+    });
   }
 
   return res.render('login', {

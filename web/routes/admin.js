@@ -122,8 +122,8 @@ router.get('/messages', (req, res) => {
   });
 });
 
-router.post('/messages/clear', (req, res) => {
-  messageStore.clearMessages();
+router.post('/messages/clear', async (req, res) => {
+  await messageStore.clearMessages();
   res.redirect('/messages');
 });
 

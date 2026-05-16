@@ -1,0 +1,13 @@
+rules_version = '2';
+// Publica estas reglas en Firebase Console → Firestore → Reglas
+// Ajusta según uses Firebase Auth en el futuro.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /bots/{churchId}/{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+// El bot usa cuenta de servicio (Admin SDK), no estas reglas del cliente.
+// Si más adelante abres el panel directo contra Firestore, cambia a auth != null.

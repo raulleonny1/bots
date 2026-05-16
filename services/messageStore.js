@@ -1,8 +1,11 @@
 /**
- * Almacén en memoria de mensajes + eventos para tiempo real (panel admin).
+ * Almacén de mensajes (memoria + Firebase) y eventos para tiempo real (panel admin).
  */
 
 const { EventEmitter } = require('events');
+const firestoreService = require('./firestoreService');
+const { initFirebase } = require('../config/firebase');
+const logger = require('../utils/logger');
 
 const MAX_MESSAGES = 500;
 const messages = [];
@@ -25,7 +28,32 @@ function addMessage(entry) {
   emitter.emit('message', record);
   emitter.emit('update', { stats: getStats() });
 
+  if (firestoreService.isFirebaseReady()) {
+    firestoreService.addMessage(record).catch((err) => {
+      logger.error('Error guardando mensaje en Firebase', { message: err.message });
+    });
+  }
+
   return record;
+}
+
+async function init() {
+  initFirebase();
+  if (!firestoreService.isFirebaseReady()) return;
+
+  try {
+    const remote = await firestoreService.loadRecentMessages({ limit: MAX_MESSAGES });
+    if (remote.length) {
+      messages.length = 0;
+      remote
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        .forEach((m) => messages.push(m));
+      logger.info('Mensajes cargados desde Firebase', { count: messages.length });
+      emitter.emit('update', { stats: getStats() });
+    }
+  } catch (error) {
+    logger.warn('No se pudieron cargar mensajes de Firebase', { message: error.message });
+  }
 }
 
 function addIncoming({ from, body, chatName, messageType }) {
@@ -79,8 +107,11 @@ function getStats() {
   };
 }
 
-function clearMessages() {
+async function clearMessages() {
   messages.length = 0;
+  if (firestoreService.isFirebaseReady()) {
+    await firestoreService.clearAllMessages();
+  }
   emitter.emit('update', { stats: getStats(), cleared: true });
 }
 
@@ -93,6 +124,7 @@ function offEvent(event, listener) {
 }
 
 module.exports = {
+  init,
   addIncoming,
   addOutgoing,
   getMessages,

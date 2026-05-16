@@ -13,6 +13,8 @@ const logger = require('./utils/logger');
 const { safeAsync } = require('./utils/asyncHandler');
 const { stopScheduler } = require('./services/schedulerService');
 const settingsService = require('./services/settingsService');
+const messageStore = require('./services/messageStore');
+const { initFirebase } = require('./config/firebase');
 const botStateService = require('./services/botStateService');
 const { startWebServer } = require('./web/server');
 const whatsappControl = require('./services/whatsappControl');
@@ -75,7 +77,6 @@ async function bootClient() {
     await safeAsync(async () => {
       await previous.destroy();
     }, 'Destruir cliente anterior');
-    setReconnectAllowed(true);
   }
 
   const client = createWhatsAppClient();
@@ -105,16 +106,27 @@ async function startBot() {
     });
   }
 
-  settingsService.loadSettings();
+  initFirebase();
+  await settingsService.init();
+  await messageStore.init();
 
   whatsappControl.registerBootClient(bootClient);
 
   startWebServer();
 
-  if (config.autoConnectWhatsApp) {
+  const keepConnected =
+    config.autoConnectWhatsApp || settingsService.shouldKeepWhatsAppConnected();
+
+  if (keepConnected) {
     setReconnectAllowed(true);
     botStateService.updateState({ status: 'loading' });
-    logger.info('PC servidor: conectando WhatsApp automaticamente (sesion guardada)...');
+    if (settingsService.shouldKeepWhatsAppConnected() && !config.autoConnectWhatsApp) {
+      logger.info(
+        'Reconectando WhatsApp tras reinicio del servidor (npm run dev guarda archivos y reinicia)...'
+      );
+    } else {
+      logger.info('Conectando WhatsApp automaticamente (sesion guardada)...');
+    }
     await safeAsync(bootClient, 'Inicialización del cliente WhatsApp');
   } else {
     setReconnectAllowed(false);

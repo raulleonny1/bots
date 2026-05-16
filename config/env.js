@@ -81,6 +81,19 @@ const config = {
     password: String(process.env.ADMIN_PASSWORD || 'admin123').trim(),
     sessionSecret: String(process.env.ADMIN_SESSION_SECRET || 'cambiar-este-secreto-en-produccion').trim(),
   },
+
+  firebase: {
+    enabled: parseBool(process.env.FIREBASE_ENABLED, false),
+    projectId: process.env.FIREBASE_PROJECT_ID || 'botsiere',
+    churchId: process.env.FIREBASE_CHURCH_ID || 'main',
+    serviceAccountPath:
+      process.env.FIREBASE_SERVICE_ACCOUNT_PATH || './firebase-service-account.json',
+    apiKey: process.env.FIREBASE_API_KEY || '',
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN || '',
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || '',
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || '',
+    appId: process.env.FIREBASE_APP_ID || '',
+  },
 };
 
 /**
@@ -111,6 +124,23 @@ function validateConfig() {
     warnings.push(
       `CRON_TIMEZONE="${config.cron.timezone}" no es válida. Usa ej: Europe/Madrid`
     );
+  }
+
+  if (config.firebase.enabled) {
+    const fs = require('fs');
+    const path = require('path');
+    const hasInline =
+      process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY;
+    const accountPath = path.resolve(
+      __dirname,
+      '..',
+      config.firebase.serviceAccountPath
+    );
+    if (!hasInline && !fs.existsSync(accountPath)) {
+      warnings.push(
+        'FIREBASE_ENABLED=true pero falta firebase-service-account.json (o FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY en .env)'
+      );
+    }
   }
 
   return warnings;

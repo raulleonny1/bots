@@ -201,6 +201,7 @@ function showPanel(s) {
     if (r && s.status === 'disconnected') {
       if (s.lastDisconnectReason === 'desconectado_desde_panel') r.textContent = 'WhatsApp desconectado manualmente desde el panel. Pulsa Conectar para volver.';
       else if (s.lastDisconnectReason === 'esperando_conexion_desde_panel') r.textContent = 'WhatsApp apagado. Pulsa Conectar arriba para vincularlo.';
+      else if (s.lastDisconnectReason === 'servidor_reiniciado') r.textContent = 'El servidor se reinicio (p. ej. al guardar codigo). Si ya habias conectado, deberia volver solo en unos segundos.';
       else r.textContent = 'WhatsApp desconectado' + (s.lastDisconnectReason ? ': '+s.lastDisconnectReason : '');
     }
   }
@@ -211,7 +212,11 @@ async function postAction(url, confirmMsg) {
   const btns = document.querySelectorAll('#btnDisconnect,#btnDisconnect2,#btnConnect,#btnReconnect,#btnNewQr,#btnNewQr2');
   btns.forEach(b => b.disabled = true);
   try {
-    const res = await fetch(url, { method: 'POST' });
+    const res = await fetch(url, { method: 'POST', credentials: 'same-origin' });
+    if (res.status === 401) {
+      window.location.href = '/login';
+      return;
+    }
     const data = await res.json();
     if (data.bot) { showPanel(data.bot); window.onLiveStatus && window.onLiveStatus({ bot: data.bot }); }
     if (!data.ok) alert(data.error || 'Error');

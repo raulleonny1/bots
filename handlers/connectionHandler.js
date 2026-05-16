@@ -1,5 +1,5 @@
 /**
- * Handler de conexión, QR, reconexión y eventos del cliente WhatsApp.
+ * Handler de conexi?n, QR, reconexi?n y eventos del cliente WhatsApp.
  */
 
 const qrcode = require('qrcode-terminal');
@@ -8,6 +8,7 @@ const logger = require('../utils/logger');
 const { safeAsync } = require('../utils/asyncHandler');
 const { startScheduler, stopScheduler } = require('../services/schedulerService');
 const botStateService = require('../services/botStateService');
+const settingsService = require('../services/settingsService');
 const { registerMessageHandler } = require('./messageHandler');
 
 let reconnectAttempts = 0;
@@ -26,7 +27,7 @@ function resetReconnectAttempts() {
 async function attemptReconnect(restartBot, reason) {
   if (reconnectAttempts >= config.reconnect.maxAttempts) {
     botStateService.setDisconnected('max_reconnect_attempts');
-    logger.error('Máximo de intentos de reconexión alcanzado. Reinicia el bot manualmente.', {
+    logger.error('M?ximo de intentos de reconexi?n alcanzado. Reinicia el bot manualmente.', {
       attempts: reconnectAttempts,
       reason,
     });
@@ -50,13 +51,13 @@ async function attemptReconnect(restartBot, reason) {
     if (typeof restartBot === 'function') {
       await restartBot();
     }
-  }, 'Reconexión WhatsApp');
+  }, 'Reconexi?n WhatsApp');
 }
 
 function registerConnectionHandlers(client, restartBot) {
   client.on('qr', (qr) => {
     botStateService.setQr(qr);
-    logger.info('Escanea el código QR con WhatsApp (Dispositivos vinculados)');
+    logger.info('Escanea el c?digo QR con WhatsApp (Dispositivos vinculados)');
     console.log('\n');
     qrcode.generate(qr, { small: true });
     console.log('\n');
@@ -64,12 +65,12 @@ function registerConnectionHandlers(client, restartBot) {
 
   client.on('authenticated', () => {
     botStateService.setAuthenticated();
-    logger.success('Autenticación exitosa — sesión guardada');
+    logger.success('Autenticaci?n exitosa ��� sesi?n guardada');
   });
 
   client.on('auth_failure', (msg) => {
     botStateService.setDisconnected('auth_failure');
-    logger.error('Fallo de autenticación', { message: msg });
+    logger.error('Fallo de autenticaci?n', { message: msg });
   });
 
   client.on('ready', async () => {
@@ -77,6 +78,7 @@ function registerConnectionHandlers(client, restartBot) {
 
     const info = client.info;
     botStateService.setReady(info);
+    settingsService.setWhatsappKeepConnected(true);
 
     logger.success(`${config.botName} conectado y listo`, {
       user: info?.pushname || 'Desconocido',
@@ -95,12 +97,12 @@ function registerConnectionHandlers(client, restartBot) {
     stopScheduler();
 
     if (!reconnectAllowed) {
-      logger.debug('Desconexión ignorada (reinicio interno del cliente)');
+      logger.debug('Desconexi?n ignorada (reinicio interno del cliente)');
       return;
     }
 
     botStateService.setDisconnected(reason);
-    logger.warn('WhatsApp desconectado', { reason });
+    logger.warn('WhatsApp desconectado ? intentando reconectar', { reason });
     await attemptReconnect(restartBot, reason);
   });
 
@@ -117,7 +119,7 @@ function registerConnectionHandlers(client, restartBot) {
   });
 
   client.on('change_state', (state) => {
-    logger.debug('Estado del cliente cambió', { state });
+    logger.debug('Estado del cliente cambi?', { state });
   });
 }
 
