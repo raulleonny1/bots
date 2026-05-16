@@ -163,7 +163,7 @@ function isCreenciasOption(option) {
 function resolveOptionPhone(option) {
   const fromOption = digitsOnly(option?.whatsappPhone);
   if (fromOption) return fromOption;
-  if (isReverendOption(option) || option?.forwardMessages) {
+  if (isReverendOption(option)) {
     return config.reverendWhatsApp || '';
   }
   return '';
@@ -204,9 +204,21 @@ function buildRedirectOptionReply(option) {
   const immediate =
     `⏳ *Te estamos redirigiendo ${prep} ${name}...*\n\nUn momento, por favor. 🙏`;
 
+  const linkUrl = String(option.linkUrl || '').trim();
   const phone = resolveOptionPhone(option);
 
-  if (option.forwardMessages && phone) {
+  if (linkUrl) {
+    const details =
+      `✅ *Listo.* Pulsa el enlace para continuar:\n\n${linkUrl}\n\n_Escribe *menu* para volver._`;
+
+    return {
+      multiMessage: true,
+      messages: [immediate, details],
+      text: `${immediate}\n\n${details}`,
+    };
+  }
+
+  if (option.forwardMessages && phone && isReverendOption(option)) {
     const details =
       `✅ *Ya puedes escribirle.*\n\n` +
       `Escribe tu mensaje *en este mismo chat* y se lo enviamos a *${name}* de inmediato.\n\n` +
@@ -220,13 +232,11 @@ function buildRedirectOptionReply(option) {
     };
   }
 
-  const linkUrl = String(option.linkUrl || '').trim();
   const waLink = phone
     ? buildWaMeLink(phone, option.whatsappPresetText || 'Hola, escribo desde el bot de la iglesia.')
     : null;
-  const mainLink = linkUrl || waLink;
 
-  if (mainLink) {
+  if (waLink) {
     const details =
       `✅ *Listo.* Pulsa el enlace para continuar:\n\n${mainLink}\n\n_Escribe *menu* para volver._`;
 
