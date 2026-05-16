@@ -79,9 +79,13 @@ router.post('/api/whatsapp/disconnect', async (req, res) => {
 
 router.post('/api/whatsapp/connect', async (req, res) => {
   try {
-    await whatsappControl.connect();
+    whatsappControl.startConnect();
     const botView = await botWithQr();
-    res.json({ ok: true, bot: botView });
+    res.json({
+      ok: true,
+      bot: botView,
+      message: 'Conectando WhatsApp… el estado se actualiza solo en unos segundos.',
+    });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
   }
@@ -89,7 +93,7 @@ router.post('/api/whatsapp/connect', async (req, res) => {
 
 router.post('/api/whatsapp/reconnect', async (req, res) => {
   try {
-    const bot = await whatsappControl.connect();
+    whatsappControl.startConnect();
     const botView = await botWithQr();
     res.json({ ok: true, bot: botView });
   } catch (error) {
@@ -99,9 +103,13 @@ router.post('/api/whatsapp/reconnect', async (req, res) => {
 
 router.post('/api/whatsapp/new-qr', async (req, res) => {
   try {
-    const bot = await whatsappControl.reconnectWithNewQr();
+    whatsappControl.startNewQr();
     const botView = await botWithQr();
-    res.json({ ok: true, bot: botView });
+    res.json({
+      ok: true,
+      bot: botView,
+      message: 'Generando QR… aparecera en pantalla en unos segundos.',
+    });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
   }

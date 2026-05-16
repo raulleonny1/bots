@@ -16,6 +16,7 @@ const { stopScheduler } = require('./schedulerService');
 const settingsService = require('./settingsService');
 
 let bootClientFn = null;
+let connectInProgress = false;
 
 function registerBootClient(fn) {
   bootClientFn = fn;
@@ -70,8 +71,36 @@ async function disconnect() {
 }
 
 /**
- * Conecta / reinicia el cliente (misma sesion si existe).
+ * Inicia conexion en segundo plano (respuesta rapida al panel).
  */
+function startConnect() {
+  if (!bootClientFn) {
+    throw new Error('Bot no inicializado');
+  }
+
+  if (connectInProgress) {
+    return botStateService.getState();
+  }
+
+  settingsService.setWhatsappKeepConnected(true);
+  setReconnectAllowed(true);
+  resetReconnectAttempts();
+  botStateService.updateState({ status: 'loading' });
+  logger.info('Conexion manual solicitada desde el panel');
+  connectInProgress = true;
+
+  void safeAsync(async () => {
+    try {
+      await bootClientFn();
+    } finally {
+      connectInProgress = false;
+    }
+  }, 'Conectar WhatsApp');
+
+  return botStateService.getState();
+}
+
+/** Conexion bloqueante (arranque del servidor) */
 async function connect() {
   if (!bootClientFn) {
     throw new Error('Bot no inicializado');
@@ -81,61 +110,81 @@ async function connect() {
   setReconnectAllowed(true);
   resetReconnectAttempts();
   botStateService.updateState({ status: 'loading' });
-  logger.info('Conexion manual solicitada desde el panel');
   await bootClientFn();
   return botStateService.getState();
 }
 
-/** @deprecated usar connect() */
+/** @deprecated usar startConnect() o connect() */
 async function reconnect() {
   return connect();
 }
 
 /**
- * Cierra sesion, borra datos guardados y genera QR nuevo.
+ * Nuevo QR en segundo plano (no bloquea la peticion HTTP).
  */
-async function reconnectWithNewQr() {
+function startNewQr() {
   if (!bootClientFn) {
     throw new Error('Bot no inicializado');
   }
 
-  logger.info('Nuevo QR solicitado desde el panel — cerrando sesion...');
-
-  resetReconnectAttempts();
-  setReconnectAllowed(false);
-  stopScheduler();
-
-  const client = global.whatsappClient;
-
-  if (client) {
-    await safeAsync(async () => {
-      await client.logout();
-    }, 'Logout WhatsApp');
-
-    await safeAsync(async () => {
-      await client.destroy();
-    }, 'Destruir cliente WhatsApp');
+  if (connectInProgress) {
+    throw new Error('Ya hay una conexion en curso. Espera unos segundos.');
   }
 
-  clearSavedSession();
-  setReconnectAllowed(true);
+  logger.info('Nuevo QR solicitado desde el panel — cerrando sesion...');
+  connectInProgress = true;
 
-  botStateService.updateState({
-    status: 'qr',
-    pushname: null,
-    number: null,
-    lastQr: null,
-    schedulerActive: false,
-  });
+  void safeAsync(async () => {
+    try {
+      resetReconnectAttempts();
+      setReconnectAllowed(false);
+      stopScheduler();
 
-  await bootClientFn();
+      const client = global.whatsappClient;
+
+      if (client) {
+        await safeAsync(async () => {
+          await client.logout();
+        }, 'Logout WhatsApp');
+
+        await safeAsync(async () => {
+          await client.destroy();
+        }, 'Destruir cliente WhatsApp');
+      }
+
+      global.whatsappClient = null;
+      clearSavedSession();
+      setReconnectAllowed(true);
+
+      botStateService.updateState({
+        status: 'qr',
+        pushname: null,
+        number: null,
+        lastQr: null,
+        schedulerActive: false,
+      });
+
+      await bootClientFn();
+    } finally {
+      connectInProgress = false;
+    }
+  }, 'Generar nuevo QR');
+
+  return botStateService.getState();
+}
+
+/** @deprecated usar startNewQr() */
+async function reconnectWithNewQr() {
+  startNewQr();
   return botStateService.getState();
 }
 
 module.exports = {
   registerBootClient,
   disconnect,
+  startConnect,
   connect,
   reconnect,
+  startNewQr,
   reconnectWithNewQr,
 };

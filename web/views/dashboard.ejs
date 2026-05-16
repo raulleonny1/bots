@@ -220,7 +220,16 @@ async function postAction(url, confirmMsg) {
     const data = await res.json();
     if (data.bot) { showPanel(data.bot); window.onLiveStatus && window.onLiveStatus({ bot: data.bot }); }
     if (!data.ok) alert(data.error || 'Error');
-  } catch (e) { alert('Error: '+e.message); }
+    else if (data.message) {
+      const hint = document.getElementById('controlHint');
+      if (hint) hint.textContent = data.message;
+    }
+  } catch (e) {
+    const msg = e.message === 'Failed to fetch'
+      ? 'No se pudo contactar al servidor. Comprueba que en este PC esta ejecutandose: npm run dev'
+      : ('Error: ' + e.message);
+    alert(msg);
+  }
   finally {
     const s = window.__lastBotStatus || {};
     updateControlButtons(s);
