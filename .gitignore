@@ -16,6 +16,7 @@ sessions/
 # Datos del panel admin (config editable)
 data/settings.json
 data/admin-sessions/
+data/cache/
 
 # Logs y temporales
 logs/

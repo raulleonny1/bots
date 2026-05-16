@@ -126,10 +126,7 @@ async function generateReply(userMessage, chatId = 'default', options = {}) {
     return config.openai.offTopicMessage;
   }
 
-  if (beliefsMode && config.openai.churchTopicsOnly && !isChurchRelated(userMessage)) {
-    logger.info('Pregunta fuera de tema en modo creencias', { chatId });
-    return config.openai.offTopicMessage;
-  }
+  // En modo creencias ya eligieron esa opcion: aceptar preguntas sobre fe sin filtro estricto
 
   if (!beliefsMode && !shouldUseAI(userMessage, chatId)) {
     return null;

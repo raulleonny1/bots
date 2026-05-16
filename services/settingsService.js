@@ -7,6 +7,7 @@ const path = require('path');
 const { config } = require('../config/env');
 const { keywords: defaultKeywords } = require('../config/keywords');
 const { defaultMenu } = require('../config/menu');
+const { defaultBeliefsSubmenu } = require('../config/beliefsSubmenu');
 const logger = require('../utils/logger');
 const firestoreService = require('./firestoreService');
 const { initFirebase } = require('../config/firebase');
@@ -16,6 +17,7 @@ const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 
 let settings = null;
 let onSettingsChange = null;
+let settingsFileMtime = 0;
 
 function defaultSettings() {
   return {
@@ -51,6 +53,27 @@ function ensureDataDir() {
   }
 }
 
+function isCreenciasLabel(label) {
+  const n = String(label || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  return /creencia|doctrina|fe de la iglesia|lo que creemos/.test(n);
+}
+
+function mergeBeliefsSubmenu(parsed) {
+  const base = defaultBeliefsSubmenu;
+  if (!parsed || !Array.isArray(parsed.items)) return base;
+  return {
+    intro: parsed.intro ?? base.intro,
+    footer: parsed.footer ?? base.footer,
+    items: parsed.items.map((item, i) => ({
+      label: item.label || base.items[i]?.label || '',
+      response: item.response || base.items[i]?.response || '',
+    })),
+  };
+}
+
 function mergeMenu(parsedMenu) {
   const base = defaultSettings().menu;
   if (!parsedMenu) return base;
@@ -59,13 +82,21 @@ function mergeMenu(parsedMenu) {
     intro: parsedMenu.intro ?? base.intro,
     footer: parsedMenu.footer ?? base.footer,
     greetings: Array.isArray(parsedMenu.greetings) ? parsedMenu.greetings : base.greetings,
+    beliefsSubmenu: mergeBeliefsSubmenu(parsedMenu.beliefsSubmenu),
     options: Array.isArray(parsedMenu.options) && parsedMenu.options.length
-      ? parsedMenu.options.map((opt, i) => ({
-          id: opt.id ?? i + 1,
-          label: opt.label || '',
-          response: opt.response || '',
-          useOpenAI: Boolean(opt.useOpenAI),
-        }))
+      ? parsedMenu.options.map((opt, i) => {
+          const reverend = /reverend|pastora|pastor/i.test(String(opt.label || ''));
+          return {
+            id: opt.id ?? i + 1,
+            label: opt.label || '',
+            response: opt.response || '',
+            whatsappPhone: opt.whatsappPhone || '',
+            forwardMessages: Boolean(opt.forwardMessages) || reverend,
+            whatsappPresetText: opt.whatsappPresetText || '',
+            redirectName: opt.redirectName || '',
+            linkUrl: opt.linkUrl || '',
+          };
+        })
       : base.options,
   };
 }
@@ -88,6 +119,9 @@ function loadSettings() {
     settings.menu = mergeMenu(parsed.menu);
     if (settings.menuEnabled === undefined) {
       settings.menuEnabled = true;
+    }
+    if (fs.existsSync(SETTINGS_FILE)) {
+      settingsFileMtime = fs.statSync(SETTINGS_FILE).mtimeMs;
     }
     return settings;
   } catch (error) {
@@ -145,8 +179,20 @@ async function init() {
   return settings;
 }
 
+function reloadSettingsIfFileChanged() {
+  if (!fs.existsSync(SETTINGS_FILE)) return;
+  const mtime = fs.statSync(SETTINGS_FILE).mtimeMs;
+  if (mtime !== settingsFileMtime) {
+    loadSettings();
+  }
+}
+
 function getSettings() {
-  if (!settings) loadSettings();
+  if (!settings) {
+    loadSettings();
+  } else {
+    reloadSettingsIfFileChanged();
+  }
   return settings;
 }
 

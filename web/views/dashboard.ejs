@@ -1,11 +1,11 @@
-﻿<%- include('partials/head') %>
-<%- include('partials/nav') %>
+<%- include('partials/head') %>
+<%- include('partials/nav', { activeNav: 'dashboard' }) %>
 
-<h2 class="mb-2">
-  <i class="bi bi-speedometer2 text-success"></i> Estado del bot
-  <span id="liveBadge" class="badge bg-secondary ms-2">Comprobando...</span>
-</h2>
-<p class="text-muted small mb-4">El indicador de arriba es el estado real de WhatsApp (igual que la tarjeta verde).</p>
+<div class="page-hero page-hero--compact">
+  <img src="/assets/logo.png" alt="" class="page-hero__logo" width="56" height="56">
+  <h1>Estado del bot</h1>
+  <p>Control de WhatsApp y conexi&oacute;n del servidor <span id="liveBadge" class="badge bg-secondary ms-1">Comprobando...</span></p>
+</div>
 
 <div class="card shadow-sm mb-4 border-secondary">
   <div class="card-header bg-white fw-semibold">
@@ -14,7 +14,7 @@
   <div class="card-body">
     <p class="small text-muted mb-3">
       Este programa debe estar <strong>siempre encendido en un PC fijo</strong> (iglesia u oficina). WhatsApp queda vinculado a ese PC.
-      Desde <strong>otro ordenador o movil</strong> solo abres el panel web (misma WiFi: <code>http://IP-del-PC:3000</code>) para ver mensajes y ajustes — no hace falta llevar el portatil.
+      Desde <strong>otro ordenador o movil</strong> solo abres el panel web (misma WiFi: <code>http://IP-del-PC:3000</code>) para ver mensajes y ajustes ? no hace falta llevar el portatil.
       <strong>Desconectar</strong> apaga WhatsApp en el PC servidor; <strong>Conectar</strong> lo enciende de nuevo.
     </p>
     <div class="d-flex flex-wrap gap-2">
@@ -169,8 +169,8 @@ function updateControlButtons(s) {
   document.querySelectorAll('#btnDisconnect,#btnDisconnect2').forEach(b => { if (b) b.disabled = !active; });
   document.querySelectorAll('#btnConnect,#btnReconnect').forEach(b => { if (b) b.disabled = !off; });
   if (hint) {
-    if (s.status === 'ready') hint.textContent = 'WhatsApp activo — el bot responde mensajes.';
-    else if (off) hint.textContent = 'Sistema apagado — pulsa Conectar WhatsApp para iniciar la sesion.';
+    if (s.status === 'ready') hint.textContent = 'WhatsApp activo ? el bot responde mensajes.';
+    else if (off) hint.textContent = 'Sistema apagado ? pulsa Conectar WhatsApp para iniciar la sesion.';
     else if (s.status === 'loading' || s.status === 'authenticating') hint.textContent = 'Conectando, espera unos segundos...';
     else if (s.status === 'qr') hint.textContent = 'Escanea el QR abajo o desconecta si quieres cancelar.';
     else hint.textContent = '';

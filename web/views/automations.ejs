@@ -1,10 +1,14 @@
 ﻿<%- include('partials/head') %>
-<%- include('partials/nav') %>
+<%- include('partials/nav', { activeNav: 'automations' }) %>
 
-<h2 class="mb-4"><i class="bi bi-gear text-success"></i> Automatizaciones</h2>
+<div class="page-hero page-hero--compact">
+  <img src="/assets/logo.png" alt="" class="page-hero__logo" width="56" height="56">
+  <h1>Automatizaciones</h1>
+  <p>Activa o desactiva respuestas, men&uacute; y palabras clave.</p>
+</div>
 
 <% if (saved) { %>
-<div class="alert alert-success alert-dismissible fade show">
+<div class="alert alert-success alert-elegant alert-dismissible fade show">
   Cambios guardados correctamente.
   <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 </div>

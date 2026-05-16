@@ -1,79 +1,138 @@
 <%- include('partials/head') %>
-<%- include('partials/nav') %>
+<%- include('partials/nav', { activeNav: 'menu' }) %>
 
-<h2 class="mb-4"><i class="bi bi-list-check text-primary"></i> Editar menu del bot</h2>
+<div class="page-hero">
+  <img src="/assets/logo.png" alt="<%= botName %>" class="page-hero__logo" width="88" height="88">
+  <h1>Menú de WhatsApp</h1>
+  <p>Configura el saludo, las opciones y las respuestas que reciben quienes escriben a la parroquia.</p>
+</div>
 
 <% if (saved) { %>
-<div class="alert alert-success alert-dismissible fade show">
-  Menu guardado. Los cambios ya estan activos en WhatsApp.
-  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+<div class="alert alert-success alert-elegant alert-dismissible fade show mb-4" role="alert">
+  <i class="bi bi-check-circle-fill me-2"></i>
+  Menú guardado. Los cambios ya están activos en WhatsApp.
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
 </div>
 <% } %>
 
-<div class="alert alert-info small">
-  <strong>ChatGPT para creencias:</strong>
-  Marca la casilla <em>Usa ChatGPT</em> en una opcion (por ejemplo "creencias de la iglesia").
-  Cuando el usuario elija ese numero, podra hacer preguntas y el bot respondera con IA
-  (solo temas de fe e iglesia).
-  <% if (!config.openaiEnvEnabled) { %>
-  <br><span class="text-danger">Ahora mismo OPENAI_ENABLED=false en .env — activalo para que funcione.</span>
-  <% } else if (!config.openaiPanelEnabled) { %>
-  <br><span class="text-warning">Activa ChatGPT en Automatizaciones (Forzar ON o Segun .env).</span>
-  <% } %>
+<div class="tips-row">
+  <div class="tip-card tip-card--faith">
+    <div class="tip-card__icon"><i class="bi bi-book"></i></div>
+    <div>
+      <div class="tip-card__title">Creencias de la iglesia</div>
+      <p class="tip-card__text">
+        La opción con «creencias» abre un submenú con temas y respuestas fijas.
+        Edita los textos en <code>data/settings.json</code> → <code>menu.beliefsSubmenu</code>.
+      </p>
+    </div>
+  </div>
+  <div class="tip-card tip-card--link">
+    <div class="tip-card__icon"><i class="bi bi-link-45deg"></i></div>
+    <div>
+      <div class="tip-card__title">Enlaces y redirección</div>
+      <p class="tip-card__text">
+        Estudio bíblico, Zoom o web: pon <em>nombre</em> y <em>enlace</em>. El bot enviará «Te estamos redirigiendo…» y el link.
+      </p>
+    </div>
+  </div>
+  <div class="tip-card tip-card--reverend">
+    <div class="tip-card__icon"><i class="bi bi-chat-heart"></i></div>
+    <div>
+      <div class="tip-card__title">Reverenda</div>
+      <p class="tip-card__text">
+        Marca <em>Reenviar mensajes</em> y define <code>REVEREND_WHATSAPP</code> en el archivo <code>.env</code>.
+      </p>
+    </div>
+  </div>
 </div>
 
 <form method="POST" action="/settings/menu">
-  <div class="card shadow-sm mb-4">
-    <div class="card-header bg-white fw-semibold">Saludo y menu</div>
-    <div class="card-body">
+  <section class="panel-card">
+    <header class="panel-card__header">
+      <span class="panel-card__title"><i class="bi bi-chat-quote me-2"></i>Saludo y menú principal</span>
+    </header>
+    <div class="panel-card__body">
       <div class="mb-3">
-        <label class="form-label">Saludos que muestran el menu (separados por coma)</label>
-        <input type="text" name="greetings" class="form-control" value="<%= (menu.greetings || []).join(', ') %>" placeholder="hola, buenos dias, buenas tardes">
+        <label class="form-label">Saludos que muestran el menú</label>
+        <input type="text" name="greetings" class="form-control" value="<%= (menu.greetings || []).join(', ') %>" placeholder="hola, buenos días, buenas tardes">
+        <div class="form-text">Separados por coma</div>
       </div>
       <div class="mb-3">
-        <label class="form-label">Texto de bienvenida (antes de las opciones)</label>
-        <textarea name="intro" class="form-control" rows="4" required><%= menu.intro %></textarea>
+        <label class="form-label">Texto de bienvenida</label>
+        <textarea name="intro" class="form-control" rows="4" required placeholder="¡Bendiciones! Bienvenido/a…"><%= menu.intro %></textarea>
       </div>
       <div class="mb-0">
-        <label class="form-label">Texto al final del menu</label>
-        <input type="text" name="footer" class="form-control" value="<%= menu.footer %>">
+        <label class="form-label">Texto al final del menú</label>
+        <input type="text" name="footer" class="form-control" value="<%= menu.footer %>" placeholder="Escribe menu para volver…">
       </div>
     </div>
-  </div>
+  </section>
 
-  <div class="card shadow-sm mb-4">
-    <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
-      <span>Opciones del menu (1, 2, 3...)</span>
-      <button type="button" class="btn btn-sm btn-outline-primary" id="addOption"><i class="bi bi-plus"></i> Anadir opcion</button>
-    </div>
-    <div class="card-body" id="optionsContainer">
+  <section class="panel-card">
+    <header class="panel-card__header">
+      <span class="panel-card__title"><i class="bi bi-grid-3x3-gap me-2"></i>Opciones del menú</span>
+      <button type="button" class="btn btn-sm btn-light" id="addOption">
+        <i class="bi bi-plus-lg me-1"></i>Añadir
+      </button>
+    </header>
+    <div class="panel-card__body" id="optionsContainer">
       <% (menu.options || []).forEach(function(opt, i) { %>
-      <div class="border rounded p-3 mb-3 option-block">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <strong>Opcion <%= i + 1 %></strong>
-          <button type="button" class="btn btn-sm btn-outline-danger remove-option">&times; Quitar</button>
+      <article class="menu-option-card option-block">
+        <span class="menu-option-card__badge"><%= i + 1 %></span>
+        <div class="menu-option-card__head">
+          <h3 class="menu-option-card__title">Opción <%= i + 1 %></h3>
+          <button type="button" class="btn btn-outline-danger btn-sm menu-option-card__remove remove-option" title="Quitar opción">
+            <i class="bi bi-trash"></i>
+          </button>
         </div>
-        <div class="mb-2">
-          <label class="form-label">Titulo (lo que ve el usuario en el menu)</label>
+        <div class="mb-3">
+          <label class="form-label">Título visible en WhatsApp</label>
           <input type="text" name="labels" class="form-control" value="<%= opt.label %>" required>
         </div>
-        <div class="mb-2">
-          <label class="form-label">Respuesta al elegir esta opcion</label>
-          <textarea name="responses" class="form-control" rows="4" required><%= opt.response %></textarea>
+        <div class="mb-3">
+          <label class="form-label">Respuesta automática</label>
+          <textarea name="responses" class="form-control" rows="3" placeholder="Texto que recibe el usuario (opcional si usas enlace o reenvío)"><%= opt.response %></textarea>
         </div>
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" name="useOpenAI" value="<%= i %>" id="openai<%= i %>" <%= opt.useOpenAI ? 'checked' : '' %>>
-          <label class="form-check-label" for="openai<%= i %>">
-            Usa ChatGPT despues (para preguntas sobre creencias / fe)
-          </label>
+        <div class="form-section">
+          <div class="form-section-title"><i class="bi bi-signpost-split me-1"></i> Redirección</div>
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label">Nombre en redirección</label>
+              <input type="text" name="redirectNames" class="form-control" value="<%= opt.redirectName || '' %>" placeholder="el estudio bíblico">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Enlace web</label>
+              <input type="url" name="linkUrls" class="form-control" value="<%= opt.linkUrl || '' %>" placeholder="https://…">
+            </div>
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label">WhatsApp (número)</label>
+              <input type="text" name="whatsappPhones" class="form-control" value="<%= opt.whatsappPhone || '' %>" placeholder="34612345678">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Texto del enlace wa.me</label>
+              <input type="text" name="whatsappPresetTexts" class="form-control" value="<%= opt.whatsappPresetText || '' %>">
+            </div>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="forwardMessages" value="<%= i %>" id="fwd<%= i %>" <%= opt.forwardMessages ? 'checked' : '' %>>
+            <label class="form-check-label" for="fwd<%= i %>">
+              Reenviar mensajes de este chat al número (reverenda)
+            </label>
+          </div>
         </div>
-      </div>
+      </article>
       <% }); %>
     </div>
-  </div>
+  </section>
 
-  <button type="submit" class="btn btn-success btn-lg"><i class="bi bi-save"></i> Guardar menu</button>
-  <a href="/automations" class="btn btn-outline-secondary btn-lg ms-2">Volver</a>
+  <div class="form-actions">
+    <button type="submit" class="btn btn-brand btn-lg">
+      <i class="bi bi-check2-circle me-2"></i>Guardar menú
+    </button>
+    <a href="/automations" class="btn btn-accent-outline btn-lg">Volver</a>
+  </div>
 </form>
 
 <% const menuScript = `
@@ -83,32 +142,46 @@ let optionIndex = ${(menu.options || []).length};
 document.getElementById('addOption')?.addEventListener('click', () => {
   const container = document.getElementById('optionsContainer');
   const i = optionIndex++;
+  const num = i + 1;
   const html = \`
-  <div class="border rounded p-3 mb-3 option-block">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <strong>Opcion \${i + 1}</strong>
-      <button type="button" class="btn btn-sm btn-outline-danger remove-option">&times; Quitar</button>
+  <article class="menu-option-card option-block">
+    <span class="menu-option-card__badge">\${num}</span>
+    <div class="menu-option-card__head">
+      <h3 class="menu-option-card__title">Opción \${num}</h3>
+      <button type="button" class="btn btn-outline-danger btn-sm menu-option-card__remove remove-option">
+        <i class="bi bi-trash"></i>
+      </button>
     </div>
-    <div class="mb-2">
-      <label class="form-label">Titulo</label>
+    <div class="mb-3">
+      <label class="form-label">Título visible en WhatsApp</label>
       <input type="text" name="labels" class="form-control" required>
     </div>
-    <div class="mb-2">
-      <label class="form-label">Respuesta</label>
-      <textarea name="responses" class="form-control" rows="4" required></textarea>
+    <div class="mb-3">
+      <label class="form-label">Respuesta automática</label>
+      <textarea name="responses" class="form-control" rows="3"></textarea>
     </div>
-    <div class="form-check">
-      <input class="form-check-input" type="checkbox" name="useOpenAI" value="\${i}">
-      <label class="form-check-label">Usa ChatGPT despues</label>
+    <div class="form-section">
+      <div class="form-section-title"><i class="bi bi-signpost-split me-1"></i> Redirección</div>
+      <div class="row g-3 mb-3">
+        <div class="col-md-6"><input type="text" name="redirectNames" class="form-control" placeholder="el estudio bíblico"></div>
+        <div class="col-md-6"><input type="url" name="linkUrls" class="form-control" placeholder="https://…"></div>
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-md-6"><input type="text" name="whatsappPhones" class="form-control" placeholder="WhatsApp"></div>
+        <div class="col-md-6"><input type="text" name="whatsappPresetTexts" class="form-control" placeholder="Texto enlace"></div>
+      </div>
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="forwardMessages" value="\${i}">
+        <label class="form-check-label">Reenviar mensajes al número</label>
+      </div>
     </div>
-  </div>\`;
+  </article>\`;
   container.insertAdjacentHTML('beforeend', html);
 });
 
 document.getElementById('optionsContainer')?.addEventListener('click', (e) => {
-  if (e.target.classList.contains('remove-option')) {
-    e.target.closest('.option-block')?.remove();
-  }
+  const btn = e.target.closest('.remove-option');
+  if (btn) btn.closest('.option-block')?.remove();
 });
 </script>`; %>
 <%- include('partials/foot', { extraScripts: menuScript }) %>

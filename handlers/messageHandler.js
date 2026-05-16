@@ -7,6 +7,8 @@ const { getAutoReply } = require('../services/autoReplyService');
 const { safeAsync } = require('../utils/asyncHandler');
 const messageStore = require('../services/messageStore');
 const settingsService = require('../services/settingsService');
+const { LOGO_CAPTION } = require('../utils/whatsappMenuFormat');
+const { getMenuLogoMessageMedia } = require('../utils/menuLogoMedia');
 
 /** Evita duplicados al escuchar message y message_create */
 const processedIds = new Set();
@@ -112,24 +114,95 @@ async function processMessage(client, message) {
     return;
   }
 
+  const menuService = require('../services/menuService');
+
+  if (
+    menuService.isForwardMode(message.from) &&
+    !menuService.isBeliefsSubmenuMode(message.from) &&
+    message.body &&
+    !menuService.isMenuCommand(message.body) &&
+    !menuService.isGreeting(message.body)
+  ) {
+    const target = menuService.getForwardTarget(message.from);
+    if (target?.phone) {
+      const toReverend = menuService.getForwardChatId(target.phone);
+      const fromLine = formatChatId(message.from);
+      const forwardText = `📩 *${chatName}* (${fromLine}):\n\n${body}`;
+
+      try {
+        await client.sendMessage(toReverend, forwardText);
+        await client.sendMessage(
+          message.from,
+          `✅ Tu mensaje fue enviado a ${target.label || 'la reverenda'}. Puedes seguir escribiendo aquí o *menu* para salir.`
+        );
+        messageStore.addOutgoing({
+          to: message.from,
+          body: '✅ Tu mensaje fue enviado a la reverenda.',
+          replyType: 'forward-reverend',
+          chatName,
+        });
+        logger.info('Mensaje reenviado a contacto del menu', {
+          to: target.phone,
+          from: chatName,
+        });
+      } catch (error) {
+        logger.error('Error al reenviar mensaje', { message: error.message });
+        await client.sendMessage(
+          message.from,
+          'No pudimos enviar el mensaje ahora. Prueba el enlace de WhatsApp o escribe *menu*.'
+        );
+      }
+      return;
+    }
+  }
+
   const reply = await getAutoReply(message, message.from);
 
   if (!reply) {
     return;
   }
 
-  await client.sendMessage(message.from, reply.text);
+  const parts =
+    Array.isArray(reply.messages) && reply.messages.length > 0
+      ? reply.messages
+      : [reply.text];
 
-  messageStore.addOutgoing({
-    to: message.from,
-    body: reply.text,
-    replyType: reply.type,
-    chatName,
-  });
+  if (reply.sendLogo) {
+    try {
+      const media = await getMenuLogoMessageMedia();
+      if (media) {
+        await client.sendMessage(message.from, media, { caption: LOGO_CAPTION });
+        messageStore.addOutgoing({
+          to: message.from,
+          body: `[Logo] ${LOGO_CAPTION}`,
+          replyType: `${reply.type}-logo`,
+          chatName,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 800));
+      }
+    } catch (error) {
+      logger.warn('No se pudo enviar el logo del menu', { message: error.message });
+    }
+  }
+
+  for (let i = 0; i < parts.length; i += 1) {
+    if (i > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 900));
+    }
+    const part = parts[i];
+    await client.sendMessage(message.from, part);
+    messageStore.addOutgoing({
+      to: message.from,
+      body: part,
+      replyType: reply.type,
+      chatName,
+    });
+  }
 
   logger.success('Respuesta automatica enviada', {
     to: chatName,
     type: reply.type,
+    parts: parts.length,
   });
 }
 

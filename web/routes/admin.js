@@ -154,7 +154,21 @@ router.post('/settings/menu', express.urlencoded({ extended: true }), (req, res)
   const responses = Array.isArray(req.body.responses)
     ? req.body.responses
     : [req.body.responses].filter(Boolean);
-  const useOpenAI = Array.isArray(req.body.useOpenAI) ? req.body.useOpenAI : [req.body.useOpenAI].filter(Boolean);
+  const whatsappPhones = Array.isArray(req.body.whatsappPhones)
+    ? req.body.whatsappPhones
+    : [req.body.whatsappPhones].filter((v) => v !== undefined);
+  const forwardMessages = Array.isArray(req.body.forwardMessages)
+    ? req.body.forwardMessages
+    : [req.body.forwardMessages].filter(Boolean);
+  const whatsappPresetTexts = Array.isArray(req.body.whatsappPresetTexts)
+    ? req.body.whatsappPresetTexts
+    : [req.body.whatsappPresetTexts].filter((v) => v !== undefined);
+  const redirectNames = Array.isArray(req.body.redirectNames)
+    ? req.body.redirectNames
+    : [req.body.redirectNames].filter((v) => v !== undefined);
+  const linkUrls = Array.isArray(req.body.linkUrls)
+    ? req.body.linkUrls
+    : [req.body.linkUrls].filter((v) => v !== undefined);
 
   const greetings = String(req.body.greetings || '')
     .split(',')
@@ -166,9 +180,17 @@ router.post('/settings/menu', express.urlencoded({ extended: true }), (req, res)
       id: i + 1,
       label: String(label || '').trim(),
       response: String(responses[i] || '').trim(),
-      useOpenAI: useOpenAI.includes(String(i)) || useOpenAI.includes(String(i + 1)),
+      whatsappPhone: String(whatsappPhones[i] || '').replace(/\D/g, ''),
+      forwardMessages: forwardMessages.includes(String(i)) || forwardMessages.includes(String(i + 1)),
+      whatsappPresetText: String(whatsappPresetTexts[i] || '').trim(),
+      redirectName: String(redirectNames[i] || '').trim(),
+      linkUrl: String(linkUrls[i] || '').trim(),
     }))
-    .filter((opt) => opt.label && opt.response);
+    .filter(
+      (opt) =>
+        opt.label &&
+        (opt.response || opt.whatsappPhone || opt.linkUrl || /creencia|doctrina/i.test(opt.label))
+    );
 
   settingsService.saveSettings({
     menu: {

@@ -35,6 +35,11 @@ function parseFloatEnv(value, defaultValue) {
   return Number.isFinite(n) ? n : defaultValue;
 }
 
+function digitsOnlyEnv(value) {
+  if (!value || typeof value !== 'string') return '';
+  return value.replace(/\D/g, '');
+}
+
 const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
   botName: process.env.BOT_NAME || 'WhatsApp Bot',
@@ -71,6 +76,9 @@ const config = {
   },
 
   sessionsPath: path.resolve(__dirname, '..', 'sessions'),
+
+  /** Numero reverenda (codigo pais sin +). Ej: 34612345678 */
+  reverendWhatsApp: digitsOnlyEnv(process.env.REVEREND_WHATSAPP),
 
   /** false por defecto: conectas manualmente desde el panel. true solo en PC fijo 24/7 */
   autoConnectWhatsApp: parseBool(process.env.AUTO_CONNECT_WHATSAPP, false),
