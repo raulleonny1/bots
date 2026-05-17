@@ -508,12 +508,85 @@ h2.page-title {
   word-break: break-word;
 }
 
+/* QR WhatsApp — sin recortes en el panel ni en otra PC */
+.qr-panel {
+  overflow: visible;
+  padding: 0.5rem 0 1rem;
+}
+
 .qr-box {
   background: #fff;
-  padding: 1rem;
+  padding: 1.25rem;
   border-radius: var(--radius);
-  display: inline-block;
-  box-shadow: var(--shadow-sm);
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+  box-shadow: var(--shadow-md);
+  border: 2px solid rgba(37, 211, 102, 0.35);
+  overflow: visible;
+}
+
+.qr-box img,
+#qrImage {
+  display: block;
+  width: auto;
+  max-width: min(400px, calc(100vw - 3rem));
+  height: auto;
+  margin: 0 auto;
+}
+
+.card.border-success {
+  overflow: visible;
+}
+
+.qr-fullscreen-body {
+  background: #f0f2f5;
+}
+
+.qr-fullscreen-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.qr-fullscreen-back {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  margin: 0;
+}
+
+.qr-fullscreen-title {
+  font-family: var(--font-display);
+  color: var(--brand-deep);
+  margin-bottom: 0.5rem;
+}
+
+.qr-fullscreen-hint {
+  color: var(--text-muted);
+  margin-bottom: 1.25rem;
+}
+
+.qr-fullscreen-frame {
+  background: #fff;
+  padding: 1.5rem;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  line-height: 0;
+}
+
+.qr-fullscreen-frame img {
+  display: block;
+  width: min(400px, 85vw);
+  height: auto;
+  max-width: 100%;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
 }
 
 .site-footer {

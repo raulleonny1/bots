@@ -13,6 +13,8 @@ const whatsappControl = require('../../services/whatsappControl');
 const { getPanelUrls } = require('../../utils/networkAddresses');
 const { requireAuth, redirectIfAuthenticated, handleLogin } = require('../middleware/auth');
 
+const QR_IMAGE_OPTS = { width: 512, margin: 2, errorCorrectionLevel: 'M' };
+
 async function botWithQr() {
   botStateService.syncFromClient(global.whatsappClient);
   const bot = botStateService.getState();
@@ -20,13 +22,33 @@ async function botWithQr() {
 
   if (bot.lastQr) {
     try {
-      qrDataUrl = await QRCode.toDataURL(bot.lastQr, { width: 300 });
+      qrDataUrl = await QRCode.toDataURL(bot.lastQr, QR_IMAGE_OPTS);
     } catch {
       qrDataUrl = null;
     }
   }
 
   return { ...bot, qrDataUrl };
+}
+
+/** Imagen PNG del QR (mejor que data URL en otros PCs/navegadores) */
+async function sendQrPng(res) {
+  botStateService.syncFromClient(global.whatsappClient);
+  const bot = botStateService.getState();
+
+  if (!bot.lastQr) {
+    res.status(404).type('text/plain').send('No hay QR activo. Pulsa Conectar en el panel.');
+    return;
+  }
+
+  try {
+    const png = await QRCode.toBuffer(bot.lastQr, { ...QR_IMAGE_OPTS, type: 'png' });
+    res.set('Content-Type', 'image/png');
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.send(png);
+  } catch (error) {
+    res.status(500).type('text/plain').send(error.message);
+  }
 }
 
 const router = express.Router();
@@ -68,6 +90,21 @@ router.get('/', async (req, res) => {
   res.render('dashboard', {
     title: 'Panel — Estado',
     ...data,
+  });
+});
+
+router.get('/api/whatsapp/qr-image', async (req, res) => {
+  await sendQrPng(res);
+});
+
+router.get('/whatsapp-qr', async (req, res) => {
+  botStateService.syncFromClient(global.whatsappClient);
+  const bot = botStateService.getState();
+  res.render('qr-fullscreen', {
+    title: 'QR WhatsApp',
+    hasQr: Boolean(bot.lastQr),
+    status: bot.status,
+    panelUrls: getPanelUrls(config.admin.port),
   });
 });
 

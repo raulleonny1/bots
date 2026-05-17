@@ -14,8 +14,9 @@
   <% panelUrls.forEach(function(url, i) { %><% if (i) { %>, <% } %><a href="<%= url %>" class="alert-link" target="_blank" rel="noopener"><%= url %></a><% }); %>
   <% } %>
   <br><br>
-  No hace falta escanear el QR en el port&aacute;til. El QR solo en el PC donde corre el bot.
-  Si arriba dice <strong>WhatsApp conectado</strong>, el bot ya funciona. <em>Conectar</em> desactivado es normal en ese caso.
+  <strong>En el otro PC no instales Visual Studio ni Node.</strong> Solo Chrome/Edge y esta direccion.
+  Para el QR usa el bot&oacute;n verde <strong>Ver QR en pantalla grande</strong> (o <code>/whatsapp-qr</code>).
+  Si arriba dice <strong>WhatsApp conectado</strong>, ya est&aacute; vinculado. <em>Conectar</em> desactivado es normal.
 </div>
 
 <div class="card shadow-sm mb-4 border-secondary">
@@ -43,7 +44,7 @@
 </div>
 
 <!-- Vincular WhatsApp (siempre visible) -->
-<div class="card shadow-sm mb-4 border-success">
+<div class="card shadow-sm mb-4 border-success overflow-visible">
   
   <div class="card-header bg-success text-white fw-semibold">
     <i class="bi bi-qr-code-scan me-2"></i> Vincular WhatsApp con el celular
@@ -67,17 +68,22 @@
       </div>
     </div>
 
-    <div id="panelQr" class="<%= bot.status === 'qr' ? '' : 'd-none' %> text-center">
+    <div id="panelQr" class="qr-panel <%= bot.status === 'qr' ? '' : 'd-none' %> text-center">
       <p class="mb-2"><strong>Escanea este codigo con tu celular:</strong></p>
       <ol class="small text-start text-muted mb-3">
         <li>Abre WhatsApp en el telefono</li>
         <li>Menu o Ajustes &rarr; <strong>Dispositivos vinculados</strong></li>
         <li><strong>Vincular dispositivo</strong> y escanea el QR</li>
       </ol>
-      <div class="qr-box d-inline-block mb-2">
-        <img id="qrImage" src="<%= bot.qrDataUrl || '' %>" alt="QR WhatsApp" style="max-width:280px;width:100%">
+      <div class="qr-box mb-3">
+        <img id="qrImage" src="<%= bot.status === 'qr' ? '/api/whatsapp/qr-image' : '' %>" alt="QR WhatsApp">
       </div>
-      <p class="small text-warning mb-0" id="qrHint">El QR se actualiza solo. Si expira, pulsa "Generar nuevo QR".</p>
+      <a href="/whatsapp-qr" class="btn btn-success mb-2" target="_blank" rel="noopener">
+        <i class="bi bi-arrows-fullscreen me-1"></i> Ver QR en pantalla grande (recomendado)
+      </a>
+      <p class="small text-muted mb-0" id="qrHint">
+        Desde otro PC usa <strong>pantalla grande</strong> si aqui se ve cortado. El QR se actualiza solo.
+      </p>
     </div>
 
     <div id="panelDisconnected" class="<%= (bot.status !== 'ready' && bot.status !== 'qr' && !['loading','authenticating','starting'].includes(bot.status)) ? '' : 'd-none' %>">
@@ -187,7 +193,7 @@ function updateControlButtons(s) {
     } else if (s.status === 'loading' || s.status === 'authenticating') {
       hint.textContent = 'Conectando en el PC servidor, espera unos segundos...';
     } else if (s.status === 'qr') {
-      hint.textContent = 'Escanea el QR con el celular (en el PC donde corre el bot, no hace falta en otros PCs).';
+      hint.textContent = 'Escanea el QR con el celular. Desde otro PC: abre «Ver QR en pantalla grande».';
     } else hint.textContent = '';
   }
 }
@@ -207,7 +213,13 @@ function showPanel(s) {
     if (as) as.textContent = (s.pushname || '') + (s.number ? ' ('+s.number+')' : '');
   } else if (s.status === 'qr') {
     qr.classList.remove('d-none');
-    if (s.qrDataUrl) document.getElementById('qrImage').src = s.qrDataUrl;
+    const img = document.getElementById('qrImage');
+    if (img) {
+      img.src = '/api/whatsapp/qr-image?t=' + Date.now();
+      img.removeAttribute('width');
+      img.removeAttribute('height');
+    }
+    qr.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   } else if (['loading','authenticating','starting'].includes(s.status)) {
     load.classList.remove('d-none');
   } else {

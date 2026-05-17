@@ -218,12 +218,21 @@ function buildRedirectOptionReply(option) {
     };
   }
 
+  const waLink = phone
+    ? buildWaMeLink(phone, option.whatsappPresetText || 'Hola, escribo desde el bot de la iglesia.')
+    : null;
+
   if (option.forwardMessages && phone && isReverendOption(option)) {
-    const details =
-      `✅ *Ya puedes escribirle.*\n\n` +
-      `Escribe tu mensaje *en este mismo chat* y se lo enviamos a *${name}* de inmediato.\n\n` +
-      `_No hace falta pulsar ningún enlace._\n\n` +
-      `_Escribe *menu* para volver._`;
+    let details = `✅ *Listo.*\n\n`;
+    if (waLink) {
+      details +=
+        `Pulsa el enlace para escribir ${prep} *${name}*:\n\n${waLink}\n\n` +
+        `O escribe tu mensaje *en este mismo chat* y se lo reenviamos de inmediato.\n\n`;
+    } else {
+      details +=
+        `Escribe tu mensaje *en este mismo chat* y se lo enviamos a *${name}* de inmediato.\n\n`;
+    }
+    details += `_Escribe *menu* para volver._`;
 
     return {
       multiMessage: true,
@@ -232,13 +241,9 @@ function buildRedirectOptionReply(option) {
     };
   }
 
-  const waLink = phone
-    ? buildWaMeLink(phone, option.whatsappPresetText || 'Hola, escribo desde el bot de la iglesia.')
-    : null;
-
   if (waLink) {
     const details =
-      `✅ *Listo.* Pulsa el enlace para continuar:\n\n${mainLink}\n\n_Escribe *menu* para volver._`;
+      `✅ *Listo.* Pulsa el enlace para continuar:\n\n${waLink}\n\n_Escribe *menu* para volver._`;
 
     return {
       multiMessage: true,
