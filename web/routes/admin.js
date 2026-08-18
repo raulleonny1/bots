@@ -87,6 +87,17 @@ async function getDashboardData(req) {
   };
 }
 
+function renderPrivacy(req, res) {
+  res.render('privacy', {
+    title: 'Política de privacidad',
+    botName: config.botName,
+  });
+}
+
+router.get('/privacidad', renderPrivacy);
+router.get('/privacy', renderPrivacy);
+router.get('/politica-de-privacidad', renderPrivacy);
+
 router.get('/login', redirectIfAuthenticated, (req, res) => {
   res.render('login', { error: null, title: 'Iniciar sesión' });
 });
