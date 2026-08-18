@@ -161,6 +161,66 @@ main.container {
   margin-bottom: 0.75rem;
 }
 
+.howto-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.85rem;
+  margin-bottom: 1.5rem;
+}
+
+.howto-step {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.95rem 1rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.howto-step__num {
+  flex-shrink: 0;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.howto-step strong {
+  display: block;
+  color: var(--brand-deep);
+  font-size: 0.92rem;
+  margin-bottom: 0.15rem;
+}
+
+.howto-step p {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.howto-step code {
+  font-size: 0.78rem;
+}
+
+.dash-card {
+  border-radius: var(--radius);
+}
+
+@media (max-width: 768px) {
+  .howto-strip {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* —— Cards —— */
 .panel-card {
   background: var(--surface);
@@ -307,6 +367,23 @@ main.container {
   border-color: rgba(30, 77, 107, 0.25);
 }
 
+.menu-option-card--nested {
+  margin-left: 0.25rem;
+  padding-left: 4rem;
+  background: #fff;
+  border-left: 3px solid var(--accent);
+}
+
+.submenu-box {
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--border);
+}
+
+.submenu-children {
+  margin-top: 0.5rem;
+}
+
 .menu-option-card__badge {
   position: absolute;
   left: 1rem;
@@ -331,6 +408,95 @@ main.container {
   align-items: flex-start;
   gap: 0.75rem;
   margin-bottom: 1rem;
+}
+
+.menu-option-card__head-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.menu-option-card__drag {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text-muted);
+  cursor: grab;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+
+.menu-option-card__drag:hover {
+  border-color: var(--accent);
+  color: var(--brand);
+  background: rgba(30, 77, 107, 0.04);
+}
+
+.menu-option-card__drag:active {
+  cursor: grabbing;
+}
+
+.menu-option-card--dragging {
+  opacity: 0.55;
+  transform: scale(0.99);
+}
+
+.menu-option-card--collapsed {
+  padding-bottom: 1rem;
+}
+
+.menu-option-card--collapsed .menu-option-card__body {
+  display: none;
+}
+
+.menu-option-card--collapsed .menu-option-card__head {
+  margin-bottom: 0;
+}
+
+.menu-option-card--drop-target {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px rgba(196, 120, 74, 0.25);
+}
+
+.menu-option-card__collapse {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--brand);
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, transform 0.15s;
+}
+
+.menu-option-card__collapse:hover {
+  border-color: var(--brand);
+  background: rgba(30, 77, 107, 0.06);
+}
+
+.menu-option-card__head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.menu-option-card__summary {
+  font-weight: 500;
+  color: var(--text-muted);
+  font-size: 0.92rem;
 }
 
 .menu-option-card__title {
@@ -508,7 +674,7 @@ h2.page-title {
   word-break: break-word;
 }
 
-/* QR WhatsApp — sin recortes en el panel ni en otra PC */
+/* QR WhatsApp — sin recortes */
 .qr-panel {
   overflow: visible;
   padding: 0.5rem 0 1rem;

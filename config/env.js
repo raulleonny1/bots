@@ -71,23 +71,37 @@ const config = {
   },
 
   reconnect: {
-    delayMs: parseIntEnv(process.env.RECONNECT_DELAY_MS, 5000),
-    maxAttempts: parseIntEnv(process.env.MAX_RECONNECT_ATTEMPTS, 10),
+    delayMs: parseIntEnv(process.env.RECONNECT_DELAY_MS, 8000),
+    maxAttempts: parseIntEnv(process.env.MAX_RECONNECT_ATTEMPTS, 15),
   },
 
   sessionsPath: path.resolve(__dirname, '..', 'sessions'),
 
+  /** Chrome de Windows (opcional). Si está vacío se busca Chrome instalado. */
+  chromePath: String(process.env.CHROME_PATH || process.env.PUPPETEER_EXECUTABLE_PATH || '').trim(),
+
   /** Numero reverenda (codigo pais sin +). Ej: 34612345678 */
   reverendWhatsApp: digitsOnlyEnv(process.env.REVEREND_WHATSAPP),
 
-  /** false por defecto: conectas manualmente desde el panel. true solo en PC fijo 24/7 */
-  autoConnectWhatsApp: parseBool(process.env.AUTO_CONNECT_WHATSAPP, false),
+  /** En el PC fijo de la iglesia: true para reconectar al arrancar */
+  autoConnectWhatsApp: parseBool(process.env.AUTO_CONNECT_WHATSAPP, true),
 
   admin: {
-    host: process.env.ADMIN_HOST || '0.0.0.0',
+    host: process.env.ADMIN_HOST || '127.0.0.1',
     port: parseIntEnv(process.env.ADMIN_PORT, 3000),
     password: String(process.env.ADMIN_PASSWORD || 'admin123').trim(),
     sessionSecret: String(process.env.ADMIN_SESSION_SECRET || 'cambiar-este-secreto-en-produccion').trim(),
+  },
+
+  whatsappCloud: {
+    enabled: parseBool(process.env.WHATSAPP_CLOUD_ENABLED, false),
+    token: String(process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN || '').trim(),
+    phoneNumberId: String(process.env.WHATSAPP_PHONE_NUMBER_ID || '').trim(),
+    businessAccountId: String(process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '').trim(),
+    verifyToken: String(process.env.WHATSAPP_VERIFY_TOKEN || '').trim(),
+    appSecret: String(process.env.WHATSAPP_APP_SECRET || '').trim(),
+    apiVersion: String(process.env.WHATSAPP_API_VERSION || 'v21.0').trim(),
+    logoUrl: String(process.env.WHATSAPP_LOGO_URL || '').trim(),
   },
 
   firebase: {
@@ -132,6 +146,18 @@ function validateConfig() {
     warnings.push(
       `CRON_TIMEZONE="${config.cron.timezone}" no es válida. Usa ej: Europe/Madrid`
     );
+  }
+
+  if (config.whatsappCloud.enabled) {
+    if (!config.whatsappCloud.token) {
+      warnings.push('WHATSAPP_CLOUD_ENABLED=true pero falta WHATSAPP_TOKEN.');
+    }
+    if (!config.whatsappCloud.phoneNumberId) {
+      warnings.push('WHATSAPP_CLOUD_ENABLED=true pero falta WHATSAPP_PHONE_NUMBER_ID.');
+    }
+    if (!config.whatsappCloud.verifyToken) {
+      warnings.push('WHATSAPP_CLOUD_ENABLED=true pero falta WHATSAPP_VERIFY_TOKEN (el que pondrás en Meta).');
+    }
   }
 
   if (config.firebase.enabled) {

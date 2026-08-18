@@ -8,6 +8,7 @@ const { createWhatsAppClient } = require('./config/client');
 const {
   registerConnectionHandlers,
   setReconnectAllowed,
+  setIgnoringDisconnect,
 } = require('./handlers/connectionHandler');
 const logger = require('./utils/logger');
 const { safeAsync } = require('./utils/asyncHandler');
@@ -33,6 +34,10 @@ process.on('uncaughtException', (error) => {
     message: error.message,
     stack: error.stack,
   });
+  if (error && error.code === 'EADDRINUSE') {
+    logger.error('El puerto del panel ya está en uso. Cierra el otro npm start y vuelve a intentar.');
+    process.exit(1);
+  }
 });
 
 // ─── Cierre limpio (Ctrl+C, PM2 stop, etc.) ──────────────────────────────────
@@ -63,29 +68,47 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
 // ─── Cliente WhatsApp ─────────────────────────────────────────────────────────
 
+let bootInProgress = null;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * Crea, registra handlers e inicializa el cliente.
  * Usado al arranque y en reconexiones.
  */
 async function bootClient() {
   if (isShuttingDown) return;
+  if (bootInProgress) return bootInProgress;
 
-  const previous = global.whatsappClient;
+  bootInProgress = (async () => {
+    const previous = global.whatsappClient;
 
-  if (previous) {
-    setReconnectAllowed(false);
-    await safeAsync(async () => {
-      await previous.destroy();
-    }, 'Destruir cliente anterior');
-  }
+    if (previous) {
+      setIgnoringDisconnect(true);
+      await safeAsync(async () => {
+        await previous.destroy();
+      }, 'Destruir cliente anterior');
+      global.whatsappClient = null;
+      // En Windows Chrome tarda en soltar el bloqueo de sessions/
+      await sleep(2500);
+      setIgnoringDisconnect(false);
+    }
 
-  const client = createWhatsAppClient();
-  global.whatsappClient = client;
+    const client = createWhatsAppClient();
+    global.whatsappClient = client;
 
-  registerConnectionHandlers(client, bootClient);
+    registerConnectionHandlers(client, bootClient);
 
-  await client.initialize();
-  logger.info('Cliente inicializado — esperando QR o sesión guardada...');
+    await client.initialize();
+    logger.info('Cliente inicializado — esperando QR o sesión guardada...');
+  })().finally(() => {
+    bootInProgress = null;
+    setIgnoringDisconnect(false);
+  });
+
+  return bootInProgress;
 }
 
 // ─── Inicio del bot ──────────────────────────────────────────────────────────
@@ -120,13 +143,7 @@ async function startBot() {
   if (keepConnected) {
     setReconnectAllowed(true);
     botStateService.updateState({ status: 'loading' });
-    if (settingsService.shouldKeepWhatsAppConnected() && !config.autoConnectWhatsApp) {
-      logger.info(
-        'Reconectando WhatsApp tras reinicio del servidor (npm run dev guarda archivos y reinicia)...'
-      );
-    } else {
-      logger.info('Conectando WhatsApp automaticamente (sesion guardada)...');
-    }
+    logger.info('Conectando WhatsApp (sesión guardada). En este PC usa npm start, no npm run dev.');
     await safeAsync(bootClient, 'Inicialización del cliente WhatsApp');
   } else {
     setReconnectAllowed(false);

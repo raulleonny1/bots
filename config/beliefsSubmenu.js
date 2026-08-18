@@ -1,13 +1,10 @@
 /**
  * Submenú de creencias (opción 5 del menú principal). Respuestas fijas, sin ChatGPT.
- * Editable en data/settings.json → menu.beliefsSubmenu
+ * Las creencias viven como opción tipo "submenu" en el panel de menú.
  */
 
 const defaultBeliefsSubmenu = {
-  intro:
-    '✝️ *Creencias de nuestra iglesia*\n' +
-    'Parroquia «El buen Pastor» — Iglesia Española Reformada Episcopal\n\n' +
-    'Elige un tema (responde con el *número*):',
+  intro: 'Elige un tema (responde con el *número*):',
   footer: '_Escribe *atrás* para ver este submenú o *menu* para el menú principal._',
   items: [
     {

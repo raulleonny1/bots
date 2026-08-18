@@ -1,5 +1,5 @@
 /**
- * URLs del panel en la red local (para acceder desde otro PC).
+ * Direcciones de red local (no usadas: el panel corre en localhost).
  */
 
 const os = require('os');

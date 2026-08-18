@@ -1,27 +1,26 @@
 /**
- * Menú interactivo editable desde el panel + submenú de creencias (opción 5).
+ * Menú interactivo con submenús (editable desde el panel).
  */
 
 const settingsService = require('./settingsService');
 const { config } = require('../config/env');
-const { defaultBeliefsSubmenu } = require('../config/beliefsSubmenu');
 const logger = require('../utils/logger');
 const { digitsOnly, buildWaMeLink } = require('../utils/whatsappLink');
+const { getLinkDisplayName, buildSplitLinkReply } = require('../utils/linkReply');
 const { toChatId } = require('../utils/phone');
 const {
   formatWhatsAppMainMenu,
-  formatWhatsAppBeliefsSubmenu,
+  formatWhatsAppSubmenu,
   shouldSendLogoForReplyType,
 } = require('../utils/whatsappMenuFormat');
 
-/** Chats viendo el submenú de creencias (tras elegir opción 5) */
-const beliefsSubmenuMode = new Map();
-
-/** Chats que reenvían mensajes a un número (ej. reverenda) */
+/** chatId -> índices desde la raíz (vacío = menú principal) */
+const navStack = new Map();
+const viewingLeaf = new Map();
 const forwardChatMode = new Map();
 
 function normalizeText(text) {
-  return text
+  return String(text || '')
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -32,28 +31,39 @@ function getMenuConfig() {
   return settingsService.getMenuConfig();
 }
 
-function getBeliefsSubmenuConfig() {
-  const menu = getMenuConfig();
-  const sub = menu.beliefsSubmenu;
-  if (sub && Array.isArray(sub.items) && sub.items.length) {
-    return {
-      intro: sub.intro || defaultBeliefsSubmenu.intro,
-      footer: sub.footer || defaultBeliefsSubmenu.footer,
-      items: sub.items.map((item) => ({
-        label: item.label || '',
-        response: item.response || '',
-      })),
-    };
+function getRootOptions() {
+  return getMenuConfig().options || [];
+}
+
+function getNodeAtPath(path) {
+  let node = { label: 'Menú', children: getRootOptions() };
+  for (const idx of path) {
+    const list = node.children || [];
+    node = list[idx];
+    if (!node) return null;
   }
-  return defaultBeliefsSubmenu;
+  return node;
+}
+
+function getCurrentOptions(chatId) {
+  const path = navStack.get(chatId) || [];
+  const node = getNodeAtPath(path);
+  return node?.children || getRootOptions();
 }
 
 function buildMenuText() {
   return formatWhatsAppMainMenu(getMenuConfig());
 }
 
-function buildBeliefsSubmenuText() {
-  return formatWhatsAppBeliefsSubmenu(getBeliefsSubmenuConfig());
+function buildCurrentMenuText(chatId) {
+  const path = navStack.get(chatId) || [];
+  if (!path.length) return buildMenuText();
+  const node = getNodeAtPath(path);
+  return formatWhatsAppSubmenu({
+    title: node?.label || 'Submenú',
+    options: node?.children || [],
+    intro: node?.response || '',
+  });
 }
 
 function withMenuPresentation(text, type) {
@@ -75,7 +85,6 @@ function getGreetings() {
 function isGreeting(messageBody) {
   const n = normalizeText(messageBody);
   if (!n) return false;
-
   return getGreetings().some((trigger) => {
     const t = normalizeText(trigger);
     return n === t || n.startsWith(`${t} `) || n.startsWith(`${t},`) || n.startsWith(`${t}!`);
@@ -87,83 +96,36 @@ function isMenuCommand(messageBody) {
   return ['menu', 'opciones', 'ayuda', 'inicio'].includes(n);
 }
 
-function isBeliefsSubmenuBackCommand(messageBody) {
+function isBackCommand(messageBody) {
   const n = normalizeText(messageBody);
-  return ['atras', 'atrás', 'volver', 'submenu', 'creencias'].includes(n);
-}
-
-function getMaxOptionId() {
-  const options = getMenuConfig().options || [];
-  return options.length;
+  return ['atras', 'volver'].includes(n);
 }
 
 function parseNumberChoice(messageBody, max) {
   const n = normalizeText(messageBody);
   if (max <= 0) return null;
-
-  const patterns = [
-    /^([1-9])$/,
-    /^opcion\s*([1-9])$/,
-    /^opción\s*([1-9])$/,
-    /^numero\s*([1-9])$/,
-    /^número\s*([1-9])$/,
-  ];
-
-  for (const pattern of patterns) {
-    const match = n.match(pattern);
-    if (match) {
-      const num = parseInt(match[1], 10);
-      if (num >= 1 && num <= max) return num;
-    }
-  }
-
+  const match = n.match(/^(?:opcion|opción|numero|número)?\s*(\d{1,2})$/);
+  if (!match) return null;
+  const num = parseInt(match[1], 10);
+  if (num >= 1 && num <= max) return num;
   return null;
 }
 
-function parseMenuOption(messageBody) {
-  return parseNumberChoice(messageBody, getMaxOptionId());
-}
-
-function parseBeliefsSubmenuOption(messageBody) {
-  const items = getBeliefsSubmenuConfig().items;
-  return parseNumberChoice(messageBody, items.length);
-}
-
-function getOptionByNumber(num) {
-  const options = getMenuConfig().options || [];
-  return options[num - 1] || null;
-}
-
-function setBeliefsSubmenuMode(chatId, enabled) {
-  if (enabled) {
-    beliefsSubmenuMode.set(chatId, true);
-  } else {
-    beliefsSubmenuMode.delete(chatId);
+function clearNav(chatId) {
+  if (chatId) {
+    navStack.delete(chatId);
+    viewingLeaf.delete(chatId);
   }
 }
 
-function isBeliefsSubmenuMode(chatId) {
-  return beliefsSubmenuMode.has(chatId);
-}
-
-function clearBeliefsSubmenuMode(chatId) {
-  beliefsSubmenuMode.delete(chatId);
-}
-
-function isReverendOption(option) {
-  const label = normalizeText(option?.label || '');
-  return /reverend|pastora|pastor/.test(label);
-}
-
-function isCreenciasOption(option) {
-  const label = normalizeText(option?.label || '');
-  return /creencia|doctrina|fe de la iglesia|lo que creemos/.test(label);
+function isInSubmenu(chatId) {
+  return Boolean(chatId && (navStack.get(chatId) || []).length);
 }
 
 function resolveOptionPhone(option) {
   const fromOption = digitsOnly(option?.whatsappPhone);
   if (fromOption) return fromOption;
-  if (isReverendOption(option)) {
+  if (option?.type === 'forward') {
     return config.reverendWhatsApp || '';
   }
   return '';
@@ -173,90 +135,61 @@ function getRedirectName(option) {
   if (String(option?.redirectName || '').trim()) {
     return String(option.redirectName).trim();
   }
-  const label = String(option?.label || '').trim();
-  if (/estudiar/i.test(label) && /biblia/i.test(label)) return 'el estudio bíblico';
-  if (/reverend/i.test(label)) return 'la reverenda';
-  return label || 'tu solicitud';
+  return String(option?.label || '').trim() || 'tu solicitud';
 }
 
-function getRedirectPreposition(option) {
-  const name = getRedirectName(option).toLowerCase();
-  if (/reverend|pastor|herman/i.test(name)) return 'con';
-  return 'a';
+function buildTextReply(option, inSubmenu) {
+  const body = String(option.response || '').trim();
+  const nav = inSubmenu
+    ? '_Elige otro número, *atrás* para volver o *menu* para el inicio._'
+    : '_Escribe *menu* para volver al inicio._';
+  const text = `${body || `Información sobre ${option.label}.`}\n\n${nav}`;
+  return { text, multiMessage: false };
 }
 
-function hasRedirectFlow(option) {
-  if (isCreenciasOption(option)) return false;
-  return Boolean(
-    String(option?.linkUrl || '').trim() ||
-    resolveOptionPhone(option) ||
-    option.forwardMessages
-  );
-}
-
-function buildRedirectOptionReply(option) {
-  if (!hasRedirectFlow(option)) {
-    return { text: option.response || '', multiMessage: false };
-  }
-
-  const name = getRedirectName(option);
-  const prep = getRedirectPreposition(option);
-  const immediate =
-    `⏳ *Te estamos redirigiendo ${prep} ${name}...*\n\nUn momento, por favor. 🙏`;
-
+function buildLinkReply(option, inSubmenu) {
   const linkUrl = String(option.linkUrl || '').trim();
+  const custom = String(option.response || '').trim();
+  const nav = '_Escribe *menu* para volver._';
+  if (!linkUrl) {
+    return buildTextReply(option, inSubmenu);
+  }
+
+  return buildSplitLinkReply({
+    intro: custom,
+    linkUrl,
+    nav,
+    displayName: getLinkDisplayName(option),
+  });
+}
+
+function buildForwardReply(option, inSubmenu) {
+  const name = getRedirectName(option);
   const phone = resolveOptionPhone(option);
+  const waLink = phone ? buildWaMeLink(phone, '') : null;
+  const custom = String(option.response || '').trim();
+  const nav = '_Escribe *menu* para volver._';
 
-  if (linkUrl) {
-    const details =
-      `✅ *Listo.* Pulsa el enlace para continuar:\n\n${linkUrl}\n\n_Escribe *menu* para volver._`;
-
-    return {
-      multiMessage: true,
-      messages: [immediate, details],
-      text: `${immediate}\n\n${details}`,
-    };
+  if (!phone && !waLink) {
+    const text = custom
+      ? `${custom}\n\n${nav}`
+      : `No hay un número configurado para ${name}.\n\n${nav}`;
+    return { text, multiMessage: false, phone: null };
   }
 
-  const waLink = phone
-    ? buildWaMeLink(phone, option.whatsappPresetText || 'Hola, escribo desde el bot de la iglesia.')
-    : null;
+  const built = buildSplitLinkReply({
+    intro: custom
+      ? `${custom}\n\n✍️ *Escribe aquí en este chat* y reenviamos tu mensaje a *${name}*.`
+      : `✍️ *Escribe aquí en este chat* y reenviamos tu mensaje a *${name}*.`,
+    linkUrl: waLink,
+    nav,
+    displayName: name,
+    kind: 'wa',
+  });
 
-  if (option.forwardMessages && phone && isReverendOption(option)) {
-    let details = `✅ *Listo.*\n\n`;
-    if (waLink) {
-      details +=
-        `Pulsa el enlace para escribir ${prep} *${name}*:\n\n${waLink}\n\n` +
-        `O escribe tu mensaje *en este mismo chat* y se lo reenviamos de inmediato.\n\n`;
-    } else {
-      details +=
-        `Escribe tu mensaje *en este mismo chat* y se lo enviamos a *${name}* de inmediato.\n\n`;
-    }
-    details += `_Escribe *menu* para volver._`;
-
-    return {
-      multiMessage: true,
-      messages: [immediate, details],
-      text: `${immediate}\n\n${details}`,
-    };
-  }
-
-  if (waLink) {
-    const details =
-      `✅ *Listo.* Pulsa el enlace para continuar:\n\n${waLink}\n\n_Escribe *menu* para volver._`;
-
-    return {
-      multiMessage: true,
-      messages: [immediate, details],
-      text: `${immediate}\n\n${details}`,
-    };
-  }
-
-  const fallback = option.response || `Información sobre ${name}.`;
   return {
-    multiMessage: true,
-    messages: [immediate, `${fallback}\n\n_Escribe *menu* para volver._`],
-    text: `${immediate}\n\n${fallback}`,
+    ...built,
+    phone,
   };
 }
 
@@ -281,104 +214,150 @@ function getForwardChatId(phone) {
   return toChatId(digitsOnly(phone));
 }
 
-function getBeliefsSubmenuReply(messageBody, chatId) {
-  if (isMenuCommand(messageBody)) {
-    clearBeliefsSubmenuMode(chatId);
-    clearForwardMode(chatId);
-    return withMenuPresentation(buildMenuText(), 'menu');
-  }
+function handleOption(option, index, chatId, currentPath) {
+  const type = option.type || 'text';
+  logger.info('Respuesta opción de menú', { option: index + 1, type, label: option.label });
 
-  if (isBeliefsSubmenuBackCommand(messageBody)) {
-    return withMenuPresentation(buildBeliefsSubmenuText(), 'beliefs-submenu');
-  }
-
-  const choice = parseBeliefsSubmenuOption(messageBody);
-  if (choice) {
-    const item = getBeliefsSubmenuConfig().items[choice - 1];
-    if (item?.response) {
-      logger.info('Respuesta submenú creencias', { item: choice });
-      return {
-        text:
-          `${item.response}\n\n` +
-          '_Elige otro número del submenú, *atrás* para ver temas o *menu* para el inicio._',
-        type: 'beliefs-answer',
-      };
+  if (type === 'submenu' && Array.isArray(option.children) && option.children.length) {
+    if (chatId) {
+      navStack.set(chatId, [...currentPath, index]);
+      viewingLeaf.delete(chatId);
+      clearForwardMode(chatId);
     }
+    return withMenuPresentation(
+      formatWhatsAppSubmenu({
+        title: option.label,
+        options: option.children,
+        intro: option.response || '',
+      }),
+      'submenu'
+    );
   }
 
-  return {
-    text:
-      'Por favor, elige un *número* del submenú de creencias (arriba), o escribe *atrás* / *menu*.',
-    type: 'beliefs-hint',
-  };
+  if (chatId && type !== 'forward') {
+    clearForwardMode(chatId);
+  }
+
+  if (chatId) viewingLeaf.set(chatId, true);
+
+  if (type === 'link') {
+    const built = buildLinkReply(option, currentPath.length > 0);
+    return {
+      text: built.text,
+      messageParts: built.messageParts || null,
+      type: 'menu-link',
+    };
+  }
+
+  if (type === 'forward') {
+    const built = buildForwardReply(option, currentPath.length > 0);
+    if (chatId && built.phone) {
+      setForwardMode(chatId, built.phone, option.label);
+    }
+    return {
+      text: built.text,
+      messageParts: built.messageParts || null,
+      type: 'menu-forward',
+    };
+  }
+
+  const built = buildTextReply(option, currentPath.length > 0);
+  return { text: built.text, type: 'menu-text' };
 }
 
-/**
- * Procesa saludo, menú, submenú de creencias o número de opción.
- */
 function getMenuReply(messageBody, chatId) {
   if (!isMenuEnabled()) {
     return null;
   }
 
-  if (isMenuCommand(messageBody)) {
-    if (chatId) {
-      clearBeliefsSubmenuMode(chatId);
-      clearForwardMode(chatId);
-    }
-    logger.info('Menu de bienvenida enviado');
+  if (isMenuCommand(messageBody) || isGreeting(messageBody)) {
+    clearNav(chatId);
+    if (chatId) clearForwardMode(chatId);
+    logger.info('Menú principal enviado');
     return withMenuPresentation(buildMenuText(), 'menu');
   }
 
-  if (isGreeting(messageBody)) {
-    if (chatId) {
-      clearBeliefsSubmenuMode(chatId);
-      clearForwardMode(chatId);
+  const path = chatId ? navStack.get(chatId) || [] : [];
+
+  if (path.length && isBackCommand(messageBody)) {
+    if (viewingLeaf.get(chatId)) {
+      viewingLeaf.delete(chatId);
+      return withMenuPresentation(buildCurrentMenuText(chatId), 'submenu');
     }
-    logger.info('Menu de bienvenida enviado (saludo)');
-    return withMenuPresentation(buildMenuText(), 'menu');
+    const next = path.slice(0, -1);
+    if (chatId) {
+      if (next.length) navStack.set(chatId, next);
+      else navStack.delete(chatId);
+    }
+    return withMenuPresentation(
+      next.length ? buildCurrentMenuText(chatId) : buildMenuText(),
+      next.length ? 'submenu' : 'menu'
+    );
   }
 
-  if (chatId && isBeliefsSubmenuMode(chatId)) {
-    return getBeliefsSubmenuReply(messageBody, chatId);
+  const current = path.length ? getNodeAtPath(path)?.children || [] : getRootOptions();
+  const optionNum = parseNumberChoice(messageBody, current.length);
+  if (optionNum) {
+    const option = current[optionNum - 1];
+    if (option) {
+      return handleOption(option, optionNum - 1, chatId, path);
+    }
   }
 
-  const optionNum = parseMenuOption(messageBody);
-  const option = optionNum ? getOptionByNumber(optionNum) : null;
-
-  if (option) {
-    logger.info('Respuesta opcion de menu', { option: optionNum });
-
-    if (isCreenciasOption(option)) {
-      if (chatId) {
-        setBeliefsSubmenuMode(chatId, true);
-        clearForwardMode(chatId);
-      }
-      return withMenuPresentation(buildBeliefsSubmenuText(), 'beliefs-submenu');
-    }
-
-    if (chatId) {
-      clearBeliefsSubmenuMode(chatId);
-    }
-
-    const phone = resolveOptionPhone(option);
-    const enableForward =
-      Boolean(option.forwardMessages) && Boolean(phone) && isReverendOption(option);
-    if (chatId && enableForward) {
-      setForwardMode(chatId, phone, option.label);
-    } else if (chatId) {
-      clearForwardMode(chatId);
-    }
-
-    const built = buildRedirectOptionReply(option);
+  if (path.length) {
     return {
-      text: built.text,
-      messages: built.multiMessage ? built.messages : null,
-      type: `menu-option-${optionNum}`,
+      text: 'Elige un *número* de la lista, o escribe *atrás* / *menu*.',
+      type: 'submenu-hint',
     };
   }
 
   return null;
+}
+
+function isBeliefsSubmenuMode(chatId) {
+  return isInSubmenu(chatId);
+}
+
+function clearBeliefsSubmenuMode(chatId) {
+  clearNav(chatId);
+}
+
+function hydrateChatState(chatId, state) {
+  if (!chatId) return;
+  const nav = Array.isArray(state?.navStack) ? state.navStack : [];
+  if (nav.length) navStack.set(chatId, nav);
+  else navStack.delete(chatId);
+
+  if (state?.viewingLeaf) viewingLeaf.set(chatId, true);
+  else viewingLeaf.delete(chatId);
+
+  if (state?.forward?.phone) {
+    forwardChatMode.set(chatId, {
+      phone: digitsOnly(state.forward.phone),
+      label: state.forward.label || 'Contacto',
+    });
+  } else {
+    forwardChatMode.delete(chatId);
+  }
+}
+
+function exportChatState(chatId) {
+  if (!chatId) {
+    return { navStack: [], viewingLeaf: false, forward: null };
+  }
+  return {
+    navStack: navStack.get(chatId) || [],
+    viewingLeaf: Boolean(viewingLeaf.get(chatId)),
+    forward: forwardChatMode.get(chatId) || null,
+  };
+}
+
+function buildBeliefsSubmenuText() {
+  const creencias = getRootOptions().find(
+    (opt) => opt.type === 'submenu' && /creencia/i.test(opt.label || '')
+  );
+  if (!creencias) return buildMenuText();
+  return formatWhatsAppSubmenu({ title: creencias.label, options: creencias.children || [] });
 }
 
 module.exports = {
@@ -387,7 +366,6 @@ module.exports = {
   buildBeliefsSubmenuText,
   isGreeting,
   isMenuCommand,
-  parseMenuOption,
   isMenuEnabled,
   isBeliefsSubmenuMode,
   clearBeliefsSubmenuMode,
@@ -396,5 +374,6 @@ module.exports = {
   getForwardTarget,
   getForwardChatId,
   getMenuConfig,
-  getBeliefsSubmenuConfig,
+  hydrateChatState,
+  exportChatState,
 };

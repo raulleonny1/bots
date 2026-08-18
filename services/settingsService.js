@@ -7,10 +7,10 @@ const path = require('path');
 const { config } = require('../config/env');
 const { keywords: defaultKeywords } = require('../config/keywords');
 const { defaultMenu } = require('../config/menu');
-const { defaultBeliefsSubmenu } = require('../config/beliefsSubmenu');
 const logger = require('../utils/logger');
 const firestoreService = require('./firestoreService');
 const { initFirebase } = require('../config/firebase');
+const { mergeMenuTree } = require('../utils/menuTree');
 
 const DATA_DIR = path.resolve(__dirname, '..', 'data');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
@@ -40,7 +40,11 @@ function defaultSettings() {
 }
 
 function setWhatsappKeepConnected(keep) {
-  saveSettings({ whatsappKeepConnected: Boolean(keep) });
+  const value = Boolean(keep);
+  if (getSettings().whatsappKeepConnected === value) {
+    return;
+  }
+  saveSettings({ whatsappKeepConnected: value });
 }
 
 function shouldKeepWhatsAppConnected() {
@@ -48,57 +52,17 @@ function shouldKeepWhatsAppConnected() {
 }
 
 function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+  } catch {
+    // Vercel / serverless: filesystem de solo lectura
   }
 }
 
-function isCreenciasLabel(label) {
-  const n = String(label || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-  return /creencia|doctrina|fe de la iglesia|lo que creemos/.test(n);
-}
-
-function mergeBeliefsSubmenu(parsed) {
-  const base = defaultBeliefsSubmenu;
-  if (!parsed || !Array.isArray(parsed.items)) return base;
-  return {
-    intro: parsed.intro ?? base.intro,
-    footer: parsed.footer ?? base.footer,
-    items: parsed.items.map((item, i) => ({
-      label: item.label || base.items[i]?.label || '',
-      response: item.response || base.items[i]?.response || '',
-    })),
-  };
-}
-
 function mergeMenu(parsedMenu) {
-  const base = defaultSettings().menu;
-  if (!parsedMenu) return base;
-
-  return {
-    intro: parsedMenu.intro ?? base.intro,
-    footer: parsedMenu.footer ?? base.footer,
-    greetings: Array.isArray(parsedMenu.greetings) ? parsedMenu.greetings : base.greetings,
-    beliefsSubmenu: mergeBeliefsSubmenu(parsedMenu.beliefsSubmenu),
-    options: Array.isArray(parsedMenu.options) && parsedMenu.options.length
-      ? parsedMenu.options.map((opt, i) => {
-          const reverend = /reverend|pastora|pastor/i.test(String(opt.label || ''));
-          return {
-            id: opt.id ?? i + 1,
-            label: opt.label || '',
-            response: opt.response || '',
-            whatsappPhone: opt.whatsappPhone || '',
-            forwardMessages: Boolean(opt.forwardMessages) || reverend,
-            whatsappPresetText: opt.whatsappPresetText || '',
-            redirectName: opt.redirectName || '',
-            linkUrl: opt.linkUrl || '',
-          };
-        })
-      : base.options,
-  };
+  return mergeMenuTree(parsedMenu, defaultSettings().menu);
 }
 
 function loadSettings() {
@@ -134,9 +98,15 @@ function loadSettings() {
 }
 
 function saveSettingsToDisk() {
-  ensureDataDir();
   settings.updatedAt = new Date().toISOString();
-  fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf8');
+  try {
+    ensureDataDir();
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf8');
+  } catch (error) {
+    logger.warn('No se pudo escribir settings.json (normal en Vercel)', {
+      message: error.message,
+    });
+  }
 }
 
 async function persistSettings() {

@@ -1,6 +1,5 @@
 /**
  * Logo en menú WhatsApp: franja horizontal baja (poco alto en el chat).
- * WhatsApp escala al ancho del chat; imágenes altas se ven enormes.
  */
 
 const fs = require('fs');
@@ -12,24 +11,28 @@ const CACHE_DIR = path.resolve(__dirname, '..', 'data', 'cache');
 
 const SEND_LOGO = process.env.MENU_SEND_LOGO !== 'false';
 
-/** Franja ancha y baja → poca altura en pantalla */
+/** Franja un poco más pequeña que antes (280×72 / logo 64) */
 const STRIP_WIDTH = Math.min(
-  400,
-  Math.max(200, parseInt(process.env.MENU_LOGO_STRIP_WIDTH || '280', 10) || 280)
+  360,
+  Math.max(160, parseInt(process.env.MENU_LOGO_STRIP_WIDTH || '220', 10) || 220)
 );
 const STRIP_HEIGHT = Math.min(
-  120,
-  Math.max(56, parseInt(process.env.MENU_LOGO_STRIP_HEIGHT || '72', 10) || 72)
+  100,
+  Math.max(40, parseInt(process.env.MENU_LOGO_STRIP_HEIGHT || '56', 10) || 56)
 );
 const LOGO_MAX_HEIGHT = Math.min(
-  STRIP_HEIGHT - 8,
-  Math.max(48, parseInt(process.env.MENU_LOGO_MAX_HEIGHT || '64', 10) || 64)
+  STRIP_HEIGHT - 6,
+  Math.max(32, parseInt(process.env.MENU_LOGO_MAX_HEIGHT || '48', 10) || 48)
 );
 
-function getCacheFile() {
+function getCacheFile(sourcePath) {
+  const tag = path
+    .basename(sourcePath || 'logo', path.extname(sourcePath || ''))
+    .replace(/\s+/g, '-')
+    .toLowerCase();
   return path.join(
     CACHE_DIR,
-    `menu-logo-wa-strip-${STRIP_WIDTH}x${STRIP_HEIGHT}-h${LOGO_MAX_HEIGHT}.png`
+    `menu-logo-wa-${tag}-${STRIP_WIDTH}x${STRIP_HEIGHT}-h${LOGO_MAX_HEIGHT}.png`
   );
 }
 
@@ -55,7 +58,7 @@ async function ensureSmallLogoFile() {
   const sourcePath = resolveLogoPath();
   if (!sourcePath) return null;
 
-  const cacheFile = getCacheFile();
+  const cacheFile = getCacheFile(sourcePath);
   if (cacheIsFresh(sourcePath, cacheFile)) {
     return cacheFile;
   }
@@ -96,7 +99,7 @@ async function ensureSmallLogoFile() {
       .png({ compressionLevel: 9 })
       .toFile(cacheFile);
 
-    logger.debug('Logo menu (franja baja) para WhatsApp', {
+    logger.debug('Logo menu (franja) para WhatsApp', {
       strip: `${STRIP_WIDTH}x${STRIP_HEIGHT}`,
       logo: `${w}x${h}`,
     });

@@ -11,8 +11,8 @@ const { config } = require('../config/env');
 const settingsService = require('../services/settingsService');
 const { restartScheduler } = require('../services/schedulerService');
 const logger = require('../utils/logger');
-const { getPanelUrls } = require('../utils/networkAddresses');
 const adminRoutes = require('./routes/admin');
+const whatsappWebhook = require('./routes/whatsappWebhook');
 
 function startWebServer() {
   if (!settingsService.getSettings()) {
@@ -30,6 +30,10 @@ function startWebServer() {
   app.set('view engine', 'ejs');
   app.set('views', path.join(__dirname, 'views'));
   app.set('json charset', 'utf-8');
+
+  // Webhook de Meta ANTES de json(): necesita el cuerpo en bruto para la firma
+  app.use('/webhook', express.raw({ type: '*/*' }), whatsappWebhook);
+  app.use('/api/webhook', express.raw({ type: '*/*' }), whatsappWebhook);
 
   app.use(express.urlencoded({ extended: true }));
   app.use(express.json());
@@ -72,20 +76,25 @@ function startWebServer() {
   });
 
   const { host, port } = config.admin;
+  const server = app.listen(port, host);
 
-  app.listen(port, host, () => {
+  server.on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+      logger.error(
+        `El puerto ${port} ya está ocupado. Cierra la otra ventana de npm start (solo una).`
+      );
+      process.exit(1);
+    }
+    logger.error('Error al abrir el panel', { message: error.message });
+    process.exit(1);
+  });
+
+  server.on('listening', () => {
     const passLen = String(process.env.ADMIN_PASSWORD || '').trim().length;
-    const lanUrls = getPanelUrls(port);
-
-    logger.success(`Panel admin (este PC): http://localhost:${port}`, {
+    logger.success(`Panel admin: http://localhost:${port}`, {
       contraseñaConfigurada: passLen > 0 ? `${passLen} caracteres` : 'usa ADMIN_PASSWORD en .env',
     });
-
-    if (lanUrls.length) {
-      logger.info('Panel desde otro equipo en la misma red WiFi:', {
-        urls: lanUrls.join('  |  '),
-      });
-    }
+    logger.info('En este PC usa npm start (no npm run dev). Deja el ordenador encendido, sin suspender.');
   });
 }
 

@@ -64,6 +64,63 @@ async function addMessage(record) {
   }
 }
 
+function chatsRef() {
+  return getDb().collection(ROOT).doc(CHURCH_ID).collection('chats');
+}
+
+function processedRef() {
+  return getDb().collection(ROOT).doc(CHURCH_ID).collection('processed');
+}
+
+async function getChatState(chatId) {
+  if (!isFirebaseReady() || !chatId) return null;
+  try {
+    const snap = await chatsRef().doc(encodeChatId(chatId)).get();
+    return snap.exists ? snap.data() : null;
+  } catch (error) {
+    logger.error('Firestore: error leyendo chat', { message: error.message });
+    return null;
+  }
+}
+
+async function saveChatState(chatId, state) {
+  if (!isFirebaseReady() || !chatId) return false;
+  try {
+    await chatsRef().doc(encodeChatId(chatId)).set(
+      {
+        ...state,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+    return true;
+  } catch (error) {
+    logger.error('Firestore: error guardando chat', { message: error.message });
+    return false;
+  }
+}
+
+function encodeChatId(chatId) {
+  return String(chatId || '').replace(/[/@.]/g, '_');
+}
+
+async function claimProcessedMessage(messageId) {
+  if (!messageId) return true;
+  if (!isFirebaseReady()) return true;
+  try {
+    await processedRef().doc(messageId).create({
+      at: new Date().toISOString(),
+    });
+    return true;
+  } catch (error) {
+    if (error.code === 6 || /already exists/i.test(error.message || '')) {
+      return false;
+    }
+    logger.warn('Firestore: no se pudo marcar mensaje procesado', { message: error.message });
+    return true;
+  }
+}
+
 async function loadRecentMessages({ limit = 150, direction, since } = {}) {
   if (!isFirebaseReady()) return [];
 
@@ -118,4 +175,7 @@ module.exports = {
   addMessage,
   loadRecentMessages,
   clearAllMessages,
+  getChatState,
+  saveChatState,
+  claimProcessedMessage,
 };

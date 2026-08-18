@@ -1,5 +1,5 @@
 /**
- * Handler de conexi?n, QR, reconexi?n y eventos del cliente WhatsApp.
+ * Handler de conexiï¿½n, QR, reconexiï¿½n y eventos del cliente WhatsApp.
  */
 
 const qrcode = require('qrcode-terminal');
@@ -12,11 +12,17 @@ const settingsService = require('../services/settingsService');
 const { registerMessageHandler } = require('./messageHandler');
 
 let reconnectAttempts = 0;
-let messageHandlerRegistered = false;
 let reconnectAllowed = false;
+let ignoringDisconnect = false;
+let reconnectInProgress = false;
+const clientsWithHandlers = new WeakSet();
 
 function setReconnectAllowed(allowed) {
-  reconnectAllowed = allowed;
+  reconnectAllowed = Boolean(allowed);
+}
+
+function setIgnoringDisconnect(value) {
+  ignoringDisconnect = Boolean(value);
 }
 
 function resetReconnectAttempts() {
@@ -24,40 +30,56 @@ function resetReconnectAttempts() {
   botStateService.updateState({ reconnectAttempts: 0 });
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function attemptReconnect(restartBot, reason) {
+  if (reconnectInProgress) {
+    logger.debug('Reconexiï¿½n ya en curso ï¿½ se ignora otro disparo');
+    return;
+  }
+
   if (reconnectAttempts >= config.reconnect.maxAttempts) {
     botStateService.setDisconnected('max_reconnect_attempts');
-    logger.error('M?ximo de intentos de reconexi?n alcanzado. Reinicia el bot manualmente.', {
+    logger.error('Mï¿½ximo de intentos de reconexiï¿½n alcanzado. Pulsa Conectar en el panel.', {
       attempts: reconnectAttempts,
       reason,
     });
     return;
   }
 
+  reconnectInProgress = true;
   reconnectAttempts += 1;
   botStateService.updateState({ reconnectAttempts });
 
   const delay = config.reconnect.delayMs;
+  logger.warn(
+    `Reconectando en ${delay / 1000}s... (intento ${reconnectAttempts}/${config.reconnect.maxAttempts})`,
+    { reason }
+  );
 
-  logger.warn(`Reconectando en ${delay / 1000}s... (intento ${reconnectAttempts}/${config.reconnect.maxAttempts})`, {
-    reason,
-  });
+  await sleep(delay);
 
-  await new Promise((resolve) => setTimeout(resolve, delay));
-
-  messageHandlerRegistered = false;
+  if (!reconnectAllowed) {
+    reconnectInProgress = false;
+    logger.info('Reconexiï¿½n cancelada (WhatsApp se desconectï¿½ desde el panel)');
+    return;
+  }
 
   await safeAsync(async () => {
     if (typeof restartBot === 'function') {
       await restartBot();
     }
-  }, 'Reconexi?n WhatsApp');
+  }, 'Reconexiï¿½n WhatsApp');
+
+  reconnectInProgress = false;
 }
 
 function registerConnectionHandlers(client, restartBot) {
   client.on('qr', (qr) => {
     botStateService.setQr(qr);
-    logger.info('Escanea el c?digo QR con WhatsApp (Dispositivos vinculados)');
+    logger.info('Escanea el cï¿½digo QR con WhatsApp (Dispositivos vinculados)');
     console.log('\n');
     qrcode.generate(qr, { small: true });
     console.log('\n');
@@ -65,16 +87,19 @@ function registerConnectionHandlers(client, restartBot) {
 
   client.on('authenticated', () => {
     botStateService.setAuthenticated();
-    logger.success('Autenticaci?n exitosa ÿÿÿ sesi?n guardada');
+    logger.success('Autenticaciï¿½n exitosa ï¿½ sesiï¿½n guardada');
   });
 
   client.on('auth_failure', (msg) => {
     botStateService.setDisconnected('auth_failure');
-    logger.error('Fallo de autenticaci?n', { message: msg });
+    logger.error('Fallo de autenticaciï¿½n. En el panel pulsa ï¿½Generar nuevo QRï¿½.', {
+      message: msg,
+    });
   });
 
   client.on('ready', async () => {
     reconnectAttempts = 0;
+    reconnectInProgress = false;
 
     const info = client.info;
     botStateService.setReady(info);
@@ -85,9 +110,9 @@ function registerConnectionHandlers(client, restartBot) {
       number: info?.wid?.user || 'N/A',
     });
 
-    if (!messageHandlerRegistered) {
+    if (!clientsWithHandlers.has(client)) {
       registerMessageHandler(client);
-      messageHandlerRegistered = true;
+      clientsWithHandlers.add(client);
     }
 
     startScheduler(client);
@@ -96,20 +121,20 @@ function registerConnectionHandlers(client, restartBot) {
   client.on('disconnected', async (reason) => {
     stopScheduler();
 
-    if (!reconnectAllowed) {
-      logger.debug('Desconexi?n ignorada (reinicio interno del cliente)');
+    if (ignoringDisconnect || !reconnectAllowed) {
+      logger.debug('Desconexiï¿½n ignorada (reinicio interno o desconexiï¿½n manual)', {
+        reason,
+      });
       return;
     }
 
     botStateService.setDisconnected(reason);
-    logger.warn('WhatsApp desconectado ? intentando reconectar', { reason });
+    logger.warn('WhatsApp desconectado ï¿½ intentando reconectar', { reason });
     await attemptReconnect(restartBot, reason);
   });
 
   client.on('loading_screen', (percent, message) => {
     const current = botStateService.getState();
-    // Tras "ready", WhatsApp puede seguir emitiendo loading_screen al sincronizar;
-    // no volver a "Cargando" en el panel si ya estamos conectados.
     if (current.status === 'ready') {
       botStateService.updateState({ loadingPercent: percent });
       return;
@@ -119,7 +144,7 @@ function registerConnectionHandlers(client, restartBot) {
   });
 
   client.on('change_state', (state) => {
-    logger.debug('Estado del cliente cambi?', { state });
+    logger.debug('Estado del cliente cambiï¿½', { state });
   });
 }
 
@@ -131,5 +156,6 @@ module.exports = {
   registerConnectionHandlers,
   getConnectionStatus,
   setReconnectAllowed,
+  setIgnoringDisconnect,
   resetReconnectAttempts,
 };

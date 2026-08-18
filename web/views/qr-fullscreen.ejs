@@ -14,7 +14,7 @@
       color: #1a2834;
       padding: 1rem;
     }
-  .wrap {
+    .wrap {
       max-width: 560px;
       margin: 0 auto;
       text-align: center;
@@ -44,28 +44,19 @@
       color: #5c6b78;
       line-height: 1.5;
     }
-    .install-box {
+    .box {
       background: #fff;
       border: 1px solid #d0d7de;
       border-radius: 10px;
       padding: 1rem;
       margin-bottom: 1.25rem;
-      text-align: left;
       font-size: 0.9rem;
     }
-    .install-box strong { color: #0d5c36; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <p><a href="/">&larr; Volver al panel</a></p>
-
-    <div class="install-box">
-      <strong>En este PC (el otro ordenador) NO instales nada.</strong><br>
-      No hace falta Visual Studio Code, Node.js ni npm. Solo abre esta pagina en
-      <strong>Chrome</strong> o <strong>Edge</strong> (navegador normal).
-      El programa del bot solo corre en el PC de la iglesia.
-    </div>
 
     <% if (hasQr) { %>
     <h1>Escanear con WhatsApp</h1>
@@ -74,13 +65,13 @@
       <img id="qrImg" src="/api/whatsapp/qr-image" alt="Codigo QR WhatsApp">
     </div>
     <p class="note">
-      Si no se ve completo: Ctrl+0 (zoom 100%) o F11 pantalla completa.
+      Si no se ve completo: Ctrl+0 (zoom 100%) o F11.
       El codigo se refresca solo cada 15 segundos.
     </p>
     <% } else { %>
-    <div class="install-box" style="border-color:#ffc107;">
+    <div class="box" style="border-color:#ffc107;">
       No hay QR ahora (estado: <strong><%= status %></strong>).
-      En el <a href="/">panel</a> del PC de la iglesia pulsa <strong>Conectar</strong>.
+      En el <a href="/">panel</a> pulsa <strong>Conectar</strong>.
     </div>
     <% } %>
   </div>

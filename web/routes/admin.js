@@ -10,7 +10,6 @@ const messageStore = require('../../services/messageStore');
 const botStateService = require('../../services/botStateService');
 const { restartScheduler } = require('../../services/schedulerService');
 const whatsappControl = require('../../services/whatsappControl');
-const { getPanelUrls } = require('../../utils/networkAddresses');
 const { requireAuth, redirectIfAuthenticated, handleLogin } = require('../middleware/auth');
 
 const QR_IMAGE_OPTS = { width: 512, margin: 2, errorCorrectionLevel: 'M' };
@@ -59,7 +58,6 @@ function getDashboardData() {
     bot: botStateService.getState(),
     settings: settingsService.getSettings(),
     stats: messageStore.getStats(),
-    panelUrls: getPanelUrls(port),
     localPanelUrl: `http://localhost:${port}`,
     config: {
       botName: config.botName,
@@ -104,7 +102,6 @@ router.get('/whatsapp-qr', async (req, res) => {
     title: 'QR WhatsApp',
     hasQr: Boolean(bot.lastQr),
     status: bot.status,
-    panelUrls: getPanelUrls(config.admin.port),
   });
 });
 
@@ -187,51 +184,23 @@ router.get('/menu', (req, res) => {
       openaiPanelEnabled: settingsService.isOpenaiRepliesEnabled(),
     },
     saved: req.query.saved === '1',
+    saveError: req.query.error === '1',
   });
 });
 
-router.post('/settings/menu', express.urlencoded({ extended: true }), (req, res) => {
-  const labels = Array.isArray(req.body.labels) ? req.body.labels : [req.body.labels].filter(Boolean);
-  const responses = Array.isArray(req.body.responses)
-    ? req.body.responses
-    : [req.body.responses].filter(Boolean);
-  const whatsappPhones = Array.isArray(req.body.whatsappPhones)
-    ? req.body.whatsappPhones
-    : [req.body.whatsappPhones].filter((v) => v !== undefined);
-  const forwardMessages = Array.isArray(req.body.forwardMessages)
-    ? req.body.forwardMessages
-    : [req.body.forwardMessages].filter(Boolean);
-  const whatsappPresetTexts = Array.isArray(req.body.whatsappPresetTexts)
-    ? req.body.whatsappPresetTexts
-    : [req.body.whatsappPresetTexts].filter((v) => v !== undefined);
-  const redirectNames = Array.isArray(req.body.redirectNames)
-    ? req.body.redirectNames
-    : [req.body.redirectNames].filter((v) => v !== undefined);
-  const linkUrls = Array.isArray(req.body.linkUrls)
-    ? req.body.linkUrls
-    : [req.body.linkUrls].filter((v) => v !== undefined);
-
+router.post('/settings/menu', express.urlencoded({ extended: true, limit: '2mb' }), (req, res) => {
   const greetings = String(req.body.greetings || '')
     .split(',')
     .map((g) => g.trim())
     .filter(Boolean);
 
-  const options = labels
-    .map((label, i) => ({
-      id: i + 1,
-      label: String(label || '').trim(),
-      response: String(responses[i] || '').trim(),
-      whatsappPhone: String(whatsappPhones[i] || '').replace(/\D/g, ''),
-      forwardMessages: forwardMessages.includes(String(i)) || forwardMessages.includes(String(i + 1)),
-      whatsappPresetText: String(whatsappPresetTexts[i] || '').trim(),
-      redirectName: String(redirectNames[i] || '').trim(),
-      linkUrl: String(linkUrls[i] || '').trim(),
-    }))
-    .filter(
-      (opt) =>
-        opt.label &&
-        (opt.response || opt.whatsappPhone || opt.linkUrl || /creencia|doctrina/i.test(opt.label))
-    );
+  let options = [];
+  try {
+    const parsed = JSON.parse(String(req.body.menuTree || '[]'));
+    options = Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return res.redirect('/menu?error=1');
+  }
 
   settingsService.saveSettings({
     menu: {

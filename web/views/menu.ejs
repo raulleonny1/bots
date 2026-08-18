@@ -4,7 +4,7 @@
 <div class="page-hero">
   <img src="/assets/logo.png" alt="<%= botName %>" class="page-hero__logo" width="88" height="88">
   <h1>Menú de WhatsApp</h1>
-  <p>Configura el saludo, las opciones y las respuestas que reciben quienes escriben a la parroquia.</p>
+  <p>Controlas cada opción: texto, enlace, reenvío a un número, o un submenú.</p>
 </div>
 
 <% if (saved) { %>
@@ -14,39 +14,37 @@
   <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
 </div>
 <% } %>
+<% if (typeof saveError !== 'undefined' && saveError) { %>
+<div class="alert alert-danger alert-elegant mb-4">No se pudo guardar el menú. Revisa las opciones e inténtalo de nuevo.</div>
+<% } %>
 
 <div class="tips-row">
   <div class="tip-card tip-card--faith">
-    <div class="tip-card__icon"><i class="bi bi-book"></i></div>
+    <div class="tip-card__icon"><i class="bi bi-diagram-3"></i></div>
     <div>
-      <div class="tip-card__title">Creencias de la iglesia</div>
-      <p class="tip-card__text">
-        La opción con «creencias» abre un submenú con temas y respuestas fijas.
-        Edita los textos en <code>data/settings.json</code> → <code>menu.beliefsSubmenu</code>.
-      </p>
+      <div class="tip-card__title">Cómo funciona</div>
+      <p class="tip-card__text">Siempre escribes el mensaje que verá la persona. El desplegable solo añade extra: enlace, reenvío a un número, o un submenú.</p>
     </div>
   </div>
   <div class="tip-card tip-card--link">
     <div class="tip-card__icon"><i class="bi bi-link-45deg"></i></div>
     <div>
-      <div class="tip-card__title">Enlaces y redirección</div>
-      <p class="tip-card__text">
-        Estudio bíblico, Zoom o web: pon <em>nombre</em> y <em>enlace</em>. El bot enviará «Te estamos redirigiendo…» y el link.
-      </p>
+      <div class="tip-card__title">Enlace</div>
+      <p class="tip-card__text">Para web, Zoom o estudio bíblico: tipo <em>Enlace</em> y pega la URL.</p>
     </div>
   </div>
   <div class="tip-card tip-card--reverend">
     <div class="tip-card__icon"><i class="bi bi-chat-heart"></i></div>
     <div>
-      <div class="tip-card__title">Reverenda</div>
-      <p class="tip-card__text">
-        Marca <em>Reenviar mensajes</em> y define <code>REVEREND_WHATSAPP</code> en el archivo <code>.env</code>.
-      </p>
+      <div class="tip-card__title">Reenvío</div>
+      <p class="tip-card__text">Tipo <em>Reenviar a WhatsApp</em> y el número (o deja vacío para usar <code>REVEREND_WHATSAPP</code> del .env).</p>
     </div>
   </div>
 </div>
 
-<form method="POST" action="/settings/menu">
+<form method="POST" action="/settings/menu" id="menuForm">
+  <input type="hidden" name="menuTree" id="menuTree" value="">
+
   <section class="panel-card">
     <header class="panel-card__header">
       <span class="panel-card__title"><i class="bi bi-chat-quote me-2"></i>Saludo y menú principal</span>
@@ -59,129 +57,430 @@
       </div>
       <div class="mb-3">
         <label class="form-label">Texto de bienvenida</label>
-        <textarea name="intro" class="form-control" rows="4" required placeholder="¡Bendiciones! Bienvenido/a…"><%= menu.intro %></textarea>
+        <textarea name="intro" class="form-control" rows="4" required><%= menu.intro %></textarea>
       </div>
       <div class="mb-0">
         <label class="form-label">Texto al final del menú</label>
-        <input type="text" name="footer" class="form-control" value="<%= menu.footer %>" placeholder="Escribe menu para volver…">
+        <input type="text" name="footer" class="form-control" value="<%= menu.footer %>">
       </div>
     </div>
   </section>
 
   <section class="panel-card">
     <header class="panel-card__header">
-      <span class="panel-card__title"><i class="bi bi-grid-3x3-gap me-2"></i>Opciones del menú</span>
-      <button type="button" class="btn btn-sm btn-light" id="addOption">
-        <i class="bi bi-plus-lg me-1"></i>Añadir
+      <span class="panel-card__title"><i class="bi bi-grid-3x3-gap me-2"></i>Opciones</span>
+      <span class="panel-card__hint text-white-50 small me-2 d-none d-lg-inline">⋮⋮ arrastrar · ▼ plegar</span>
+      <button type="button" class="btn btn-sm btn-light" id="addRootOption">
+        <i class="bi bi-plus-lg me-1"></i>Añadir opción
       </button>
     </header>
-    <div class="panel-card__body" id="optionsContainer">
-      <% (menu.options || []).forEach(function(opt, i) { %>
-      <article class="menu-option-card option-block">
-        <span class="menu-option-card__badge"><%= i + 1 %></span>
-        <div class="menu-option-card__head">
-          <h3 class="menu-option-card__title">Opción <%= i + 1 %></h3>
-          <button type="button" class="btn btn-outline-danger btn-sm menu-option-card__remove remove-option" title="Quitar opción">
-            <i class="bi bi-trash"></i>
-          </button>
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Título visible en WhatsApp</label>
-          <input type="text" name="labels" class="form-control" value="<%= opt.label %>" required>
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Respuesta automática</label>
-          <textarea name="responses" class="form-control" rows="3" placeholder="Texto que recibe el usuario (opcional si usas enlace o reenvío)"><%= opt.response %></textarea>
-        </div>
-        <div class="form-section">
-          <div class="form-section-title"><i class="bi bi-signpost-split me-1"></i> Redirección</div>
-          <div class="row g-3 mb-3">
-            <div class="col-md-6">
-              <label class="form-label">Nombre en redirección</label>
-              <input type="text" name="redirectNames" class="form-control" value="<%= opt.redirectName || '' %>" placeholder="el estudio bíblico">
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Enlace web</label>
-              <input type="url" name="linkUrls" class="form-control" value="<%= opt.linkUrl || '' %>" placeholder="https://…">
-            </div>
-          </div>
-          <div class="row g-3 mb-3">
-            <div class="col-md-6">
-              <label class="form-label">WhatsApp (número)</label>
-              <input type="text" name="whatsappPhones" class="form-control" value="<%= opt.whatsappPhone || '' %>" placeholder="34612345678">
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Texto del enlace wa.me</label>
-              <input type="text" name="whatsappPresetTexts" class="form-control" value="<%= opt.whatsappPresetText || '' %>">
-            </div>
-          </div>
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="forwardMessages" value="<%= i %>" id="fwd<%= i %>" <%= opt.forwardMessages ? 'checked' : '' %>>
-            <label class="form-check-label" for="fwd<%= i %>">
-              Reenviar mensajes de este chat al número (reverenda)
-            </label>
-          </div>
-        </div>
-      </article>
-      <% }); %>
-    </div>
+    <div class="panel-card__body" id="optionsContainer"></div>
   </section>
 
   <div class="form-actions">
     <button type="submit" class="btn btn-brand btn-lg">
       <i class="bi bi-check2-circle me-2"></i>Guardar menú
     </button>
-    <a href="/automations" class="btn btn-accent-outline btn-lg">Volver</a>
+    <a href="/" class="btn btn-accent-outline btn-lg">Volver</a>
   </div>
 </form>
 
+<script type="application/json" id="menuOptionsData"><%- JSON.stringify(menu.options || []).replace(/</g, '\\u003c') %></script>
+
 <% const menuScript = `
 <script>
-let optionIndex = ${(menu.options || []).length};
+const MAX_DEPTH = 2;
+const TYPE_LABELS = {
+  text: 'Enviar un texto',
+  link: 'Texto + enlace web',
+  forward: 'Texto + reenviar al número',
+  submenu: 'Abrir un submenú'
+};
 
-document.getElementById('addOption')?.addEventListener('click', () => {
-  const container = document.getElementById('optionsContainer');
-  const i = optionIndex++;
-  const num = i + 1;
-  const html = \`
-  <article class="menu-option-card option-block">
-    <span class="menu-option-card__badge">\${num}</span>
-    <div class="menu-option-card__head">
-      <h3 class="menu-option-card__title">Opción \${num}</h3>
-      <button type="button" class="btn btn-outline-danger btn-sm menu-option-card__remove remove-option">
-        <i class="bi bi-trash"></i>
-      </button>
-    </div>
-    <div class="mb-3">
-      <label class="form-label">Título visible en WhatsApp</label>
-      <input type="text" name="labels" class="form-control" required>
-    </div>
-    <div class="mb-3">
-      <label class="form-label">Respuesta automática</label>
-      <textarea name="responses" class="form-control" rows="3"></textarea>
-    </div>
-    <div class="form-section">
-      <div class="form-section-title"><i class="bi bi-signpost-split me-1"></i> Redirección</div>
-      <div class="row g-3 mb-3">
-        <div class="col-md-6"><input type="text" name="redirectNames" class="form-control" placeholder="el estudio bíblico"></div>
-        <div class="col-md-6"><input type="url" name="linkUrls" class="form-control" placeholder="https://…"></div>
-      </div>
-      <div class="row g-3 mb-3">
-        <div class="col-md-6"><input type="text" name="whatsappPhones" class="form-control" placeholder="WhatsApp"></div>
-        <div class="col-md-6"><input type="text" name="whatsappPresetTexts" class="form-control" placeholder="Texto enlace"></div>
-      </div>
-      <div class="form-check">
-        <input class="form-check-input" type="checkbox" name="forwardMessages" value="\${i}">
-        <label class="form-check-label">Reenviar mensajes al número</label>
-      </div>
-    </div>
-  </article>\`;
-  container.insertAdjacentHTML('beforeend', html);
+function blankOption() {
+  return {
+    type: 'text',
+    label: '',
+    response: '',
+    linkUrl: '',
+    whatsappPhone: '',
+    whatsappPresetText: '',
+    redirectName: '',
+    children: []
+  };
+}
+
+let options = [];
+try {
+  options = JSON.parse(document.getElementById('menuOptionsData').textContent || '[]');
+} catch (e) {
+  options = [];
+}
+if (!Array.isArray(options)) options = [];
+
+const collapsedPaths = new Set();
+let draggedPath = null;
+let lastDragClientY = 0;
+let dragScrollFrame = null;
+
+function pathKey(path) {
+  return Array.isArray(path) ? path.join('.') : String(path || '');
+}
+
+function remapIndex(idx, fromIdx, toIdx) {
+  if (idx === fromIdx) return toIdx;
+  if (fromIdx < toIdx) {
+    if (idx > fromIdx && idx <= toIdx) return idx - 1;
+  } else if (fromIdx > toIdx) {
+    if (idx >= toIdx && idx < fromIdx) return idx + 1;
+  }
+  return idx;
+}
+
+function remapCollapsedPaths(parentPath, fromIdx, toIdx) {
+  const parentKey = pathKey(parentPath);
+  const next = new Set();
+  collapsedPaths.forEach((p) => {
+    const parts = parsePath(p);
+    const itemParent = parts.slice(0, -1);
+    const itemParentKey = pathKey(itemParent);
+    if (itemParentKey !== parentKey) {
+      next.add(p);
+      return;
+    }
+    const idx = parts[parts.length - 1];
+    const newIdx = remapIndex(idx, fromIdx, toIdx);
+    next.add(pathKey(itemParent.concat(newIdx)));
+  });
+  collapsedPaths.clear();
+  next.forEach((p) => collapsedPaths.add(p));
+}
+
+function startDragAutoScroll() {
+  stopDragAutoScroll();
+  const tick = () => {
+    if (!draggedPath) return;
+    const margin = 110;
+    const maxSpeed = 22;
+    const y = lastDragClientY;
+    if (y > 0 && y < margin) {
+      const factor = (margin - y) / margin;
+      window.scrollBy(0, -Math.ceil(maxSpeed * factor));
+    } else if (y > window.innerHeight - margin) {
+      const factor = (y - (window.innerHeight - margin)) / margin;
+      window.scrollBy(0, Math.ceil(maxSpeed * factor));
+    }
+    dragScrollFrame = requestAnimationFrame(tick);
+  };
+  dragScrollFrame = requestAnimationFrame(tick);
+}
+
+function stopDragAutoScroll() {
+  if (dragScrollFrame) {
+    cancelAnimationFrame(dragScrollFrame);
+    dragScrollFrame = null;
+  }
+}
+
+function applyCollapsedState() {
+  document.querySelectorAll('.menu-option-card').forEach((card) => {
+    const collapsed = collapsedPaths.has(card.dataset.path);
+    card.classList.toggle('menu-option-card--collapsed', collapsed);
+    const icon = card.querySelector('.js-collapse i');
+    if (icon) icon.className = collapsed ? 'bi bi-chevron-down' : 'bi bi-chevron-up';
+  });
+}
+
+function getList(path) {
+  if (!path.length) return options;
+  let list = options;
+  for (let i = 0; i < path.length; i++) {
+    const node = list[path[i]];
+    if (!node) return [];
+    if (!Array.isArray(node.children)) node.children = [];
+    if (i === path.length - 1) return node.children;
+    list = node.children;
+  }
+  return options;
+}
+
+function getNode(path) {
+  if (!path.length) return null;
+  const parentPath = path.slice(0, -1);
+  const list = parentPath.length ? getList(parentPath.concat()) : options;
+  const parentList = parentPath.length ? getList(parentPath) : options;
+  return parentList[path[path.length - 1]];
+}
+
+function esc(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function typeSelect(type, pathStr) {
+  return Object.keys(TYPE_LABELS).map((t) =>
+    '<option value="' + t + '"' + (type === t ? ' selected' : '') + '>' + TYPE_LABELS[t] + '</option>'
+  ).join('');
+}
+
+function optionCard(opt, path) {
+  const depth = path.length - 1;
+  const num = path[path.length - 1] + 1;
+  const pathStr = path.join('.');
+  const type = opt.type || 'text';
+  const nestedClass = depth ? ' menu-option-card--nested' : '';
+  let extra = '<div class="mb-3"><label class="form-label">Qué responde el bot en WhatsApp</label>' +
+    '<textarea class="form-control js-field" data-path="' + pathStr + '" data-field="response" rows="4" placeholder="Escribe aquí el mensaje…">' + esc(opt.response) + '</textarea>' +
+    '<div class="form-text">' + (type === 'submenu'
+      ? 'Este texto se envía al abrir el submenú, junto con las opciones de abajo. No se borra.'
+      : 'Este texto siempre se envía. Lo de abajo es extra.') + '</div></div>';
+  if (type === 'link') {
+    extra += '<div class="row g-3"><div class="col-md-6"><label class="form-label">Texto del enlace</label>' +
+      '<input class="form-control js-field" data-path="' + pathStr + '" data-field="redirectName" placeholder="Ej: Ver estudios bíblicos" value="' + esc(opt.redirectName) + '">' +
+      '<div class="form-text">Esta frase aparece en WhatsApp en lugar de la URL larga.</div></div>' +
+      '<div class="col-md-6"><label class="form-label">Enlace web</label>' +
+      '<input class="form-control js-field" data-path="' + pathStr + '" data-field="linkUrl" type="url" placeholder="https://" value="' + esc(opt.linkUrl) + '"></div></div>';
+  } else if (type === 'forward') {
+    extra += '<div class="row g-3"><div class="col-md-6"><label class="form-label">Número WhatsApp (opcional)</label>' +
+      '<input class="form-control js-field" data-path="' + pathStr + '" data-field="whatsappPhone" placeholder="34612345678" value="' + esc(opt.whatsappPhone) + '">' +
+      '<div class="form-text">Vacío = usa REVEREND_WHATSAPP del .env</div></div>' +
+      '<div class="col-md-6"><label class="form-label">Nombre del contacto</label>' +
+      '<input class="form-control js-field" data-path="' + pathStr + '" data-field="redirectName" placeholder="Ej: Programa de alimentos" value="' + esc(opt.redirectName) + '">' +
+      '<div class="form-text">Frase amigable; la URL no se muestra en el chat.</div></div></div>';
+  } else if (type === 'submenu') {
+    extra += '<div class="submenu-box"><div class="d-flex justify-content-between align-items-center mb-2">' +
+      '<span class="form-label mb-0">Opciones de este submenú</span>' +
+      (depth < MAX_DEPTH ? '<button type="button" class="btn btn-sm btn-outline-primary js-add-child" data-path="' + pathStr + '"><i class="bi bi-plus"></i> Añadir dentro</button>' : '') +
+      '</div><div class="submenu-children sortable-list" data-parent-path="' + pathStr + '">' +
+      (opt.children || []).map((child, i) => optionCard(child, path.concat(i))).join('') +
+      '</div></div>';
+  }
+
+  const labelPreview = opt.label
+    ? '<span class="menu-option-card__summary"> — ' + esc(opt.label) + '</span>'
+    : '';
+
+  return '<article class="menu-option-card option-block' + nestedClass + '" data-path="' + pathStr + '">' +
+    '<span class="menu-option-card__badge">' + num + '</span>' +
+    '<div class="menu-option-card__head">' +
+    '<div class="menu-option-card__head-left">' +
+    '<button type="button" class="menu-option-card__drag js-drag-handle" aria-label="Arrastrar para reordenar" title="Arrastrar para reordenar">' +
+    '<i class="bi bi-grip-vertical"></i></button>' +
+    '<button type="button" class="menu-option-card__collapse js-collapse" aria-label="Plegar o desplegar" title="Plegar / desplegar">' +
+    '<i class="bi bi-chevron-up"></i></button>' +
+    '<h3 class="menu-option-card__title">' + (depth ? 'Subopción ' : 'Opción ') + num + labelPreview + '</h3>' +
+    '</div>' +
+    '<div class="menu-option-card__head-actions">' +
+    '<button type="button" class="btn btn-outline-danger btn-sm js-remove" data-path="' + pathStr + '" title="Eliminar"><i class="bi bi-trash"></i></button>' +
+    '</div>' +
+    '</div>' +
+    '<div class="menu-option-card__body">' +
+    '<div class="row g-3 mb-3">' +
+    '<div class="col-md-7"><label class="form-label">Título en WhatsApp</label>' +
+    '<input class="form-control js-field js-label-field" data-path="' + pathStr + '" data-field="label" required value="' + esc(opt.label) + '"></div>' +
+    '<div class="col-md-5"><label class="form-label">Además de ese texto</label>' +
+    '<select class="form-select js-type" data-path="' + pathStr + '">' + typeSelect(type, pathStr) + '</select></div>' +
+    '</div>' + extra +
+    '</div>' +
+    '</article>';
+}
+
+function parsePath(str) {
+  return String(str).split('.').map((n) => parseInt(n, 10));
+}
+
+function syncFromDom() {
+  document.querySelectorAll('#optionsContainer .js-field').forEach((el) => {
+    const node = getNode(parsePath(el.dataset.path));
+    if (node && el.dataset.field) node[el.dataset.field] = el.value;
+  });
+}
+
+function getParentList(path) {
+  if (path.length <= 1) return options;
+  const parent = getNode(path.slice(0, -1));
+  if (!parent) return options;
+  if (!Array.isArray(parent.children)) parent.children = [];
+  return parent.children;
+}
+
+function reorderOptions(fromPath, toPath) {
+  const fromParent = fromPath.slice(0, -1).join('.');
+  const toParent = toPath.slice(0, -1).join('.');
+  if (fromParent !== toParent) return;
+
+  syncFromDom();
+  const list = getParentList(fromPath);
+  const fromIdx = fromPath[fromPath.length - 1];
+  let toIdx = toPath[toPath.length - 1];
+  if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0 || fromIdx >= list.length) return;
+
+  const item = list.splice(fromIdx, 1)[0];
+  if (fromIdx < toIdx) toIdx -= 1;
+  list.splice(toIdx, 0, item);
+  remapCollapsedPaths(fromPath.slice(0, -1), fromPath[fromPath.length - 1], toIdx);
+  render();
+}
+
+function updateCardSummary(card) {
+  const labelInput = card.querySelector('.js-label-field');
+  const title = card.querySelector('.menu-option-card__title');
+  if (!title || !labelInput) return;
+  const numMatch = title.textContent.match(/^(Subopción|Opción)\s+\d+/);
+  const prefix = numMatch ? numMatch[0] : title.textContent.split('—')[0].trim();
+  const label = labelInput.value.trim();
+  title.innerHTML = prefix + (label
+    ? ' <span class="menu-option-card__summary">— ' + esc(label) + '</span>'
+    : '');
+}
+
+function initSortable(container) {
+  if (!container) return;
+
+  Array.from(container.children).forEach((card) => {
+    if (!card.classList.contains('menu-option-card')) return;
+    const handle = card.querySelector('.js-drag-handle');
+    if (!handle || handle.dataset.sortableBound) return;
+    handle.dataset.sortableBound = '1';
+
+    handle.addEventListener('mousedown', () => card.setAttribute('draggable', 'true'));
+    card.addEventListener('dragend', () => {
+      card.removeAttribute('draggable');
+      card.classList.remove('menu-option-card--dragging');
+      document.querySelectorAll('.menu-option-card--drop-target').forEach((el) => {
+        el.classList.remove('menu-option-card--drop-target');
+      });
+      draggedPath = null;
+      stopDragAutoScroll();
+    });
+
+    card.addEventListener('dragstart', (e) => {
+      draggedPath = card.dataset.path;
+      lastDragClientY = e.clientY || 0;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', draggedPath);
+      card.classList.add('menu-option-card--dragging');
+      startDragAutoScroll();
+    });
+
+    card.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      lastDragClientY = e.clientY;
+      if (!draggedPath || draggedPath === card.dataset.path) return;
+      const dragParent = draggedPath.split('.').slice(0, -1).join('.');
+      const dropParent = card.dataset.path.split('.').slice(0, -1).join('.');
+      if (dragParent !== dropParent) return;
+      e.dataTransfer.dropEffect = 'move';
+      card.classList.add('menu-option-card--drop-target');
+    });
+
+    card.addEventListener('dragleave', () => {
+      card.classList.remove('menu-option-card--drop-target');
+    });
+
+    card.addEventListener('drop', (e) => {
+      e.preventDefault();
+      card.classList.remove('menu-option-card--drop-target');
+      const from = parsePath(draggedPath || e.dataTransfer.getData('text/plain'));
+      const to = parsePath(card.dataset.path);
+      reorderOptions(from, to);
+      draggedPath = null;
+      stopDragAutoScroll();
+    });
+  });
+}
+
+function initAllSortables() {
+  initSortable(document.getElementById('optionsContainer'));
+  document.querySelectorAll('.submenu-children.sortable-list').forEach(initSortable);
+}
+
+function render() {
+  const box = document.getElementById('optionsContainer');
+  if (!options.length) {
+    box.innerHTML = '<p class="text-muted mb-0">No hay opciones. Pulsa «Añadir opción».</p>';
+    return;
+  }
+  box.innerHTML = options.map((opt, i) => optionCard(opt, [i])).join('');
+  initAllSortables();
+  applyCollapsedState();
+}
+
+document.getElementById('addRootOption')?.addEventListener('click', () => {
+  syncFromDom();
+  options.push(blankOption());
+  render();
 });
 
 document.getElementById('optionsContainer')?.addEventListener('click', (e) => {
-  const btn = e.target.closest('.remove-option');
-  if (btn) btn.closest('.option-block')?.remove();
+  const collapseBtn = e.target.closest('.js-collapse');
+  const add = e.target.closest('.js-add-child');
+  const rm = e.target.closest('.js-remove');
+  if (collapseBtn) {
+    const card = collapseBtn.closest('.menu-option-card');
+    if (!card) return;
+    const path = card.dataset.path;
+    const collapsed = card.classList.toggle('menu-option-card--collapsed');
+    const icon = collapseBtn.querySelector('i');
+    if (icon) icon.className = collapsed ? 'bi bi-chevron-down' : 'bi bi-chevron-up';
+    if (collapsed) collapsedPaths.add(path);
+    else collapsedPaths.delete(path);
+    return;
+  }
+  if (add) {
+    syncFromDom();
+    const node = getNode(parsePath(add.dataset.path));
+    if (!node) return;
+    node.type = 'submenu';
+    if (!Array.isArray(node.children)) node.children = [];
+    node.children.push(blankOption());
+    render();
+  }
+  if (rm) {
+    syncFromDom();
+    const path = parsePath(rm.dataset.path);
+    const idx = path.pop();
+    const list = path.length ? (getNode(path).children || []) : options;
+    list.splice(idx, 1);
+    render();
+  }
 });
+
+document.getElementById('optionsContainer')?.addEventListener('input', (e) => {
+  const field = e.target.closest('.js-field');
+  if (!field) return;
+  const node = getNode(parsePath(field.dataset.path));
+  if (node) node[field.dataset.field] = field.value;
+  if (field.classList.contains('js-label-field')) {
+    updateCardSummary(field.closest('.menu-option-card'));
+  }
+});
+
+document.getElementById('optionsContainer')?.addEventListener('change', (e) => {
+  const sel = e.target.closest('.js-type');
+  if (!sel) return;
+  syncFromDom();
+  const node = getNode(parsePath(sel.dataset.path));
+  if (!node) return;
+  node.type = sel.value;
+  if (node.type === 'submenu' && !Array.isArray(node.children)) node.children = [];
+  render();
+});
+
+document.getElementById('menuForm')?.addEventListener('submit', () => {
+  syncFromDom();
+  document.getElementById('menuTree').value = JSON.stringify(options);
+});
+
+document.addEventListener('dragover', (e) => {
+  if (!draggedPath) return;
+  lastDragClientY = e.clientY;
+  e.preventDefault();
+});
+
+render();
 </script>`; %>
 <%- include('partials/foot', { extraScripts: menuScript }) %>

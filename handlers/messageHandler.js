@@ -55,6 +55,19 @@ function formatChatId(from) {
   return num || from;
 }
 
+/** @returns {{ text: string, linkPreview?: boolean }[]} */
+function normalizeReplyParts(reply) {
+  if (Array.isArray(reply.messageParts) && reply.messageParts.length > 0) {
+    return reply.messageParts.map((part) =>
+      typeof part === 'string' ? { text: part } : part
+    );
+  }
+  if (Array.isArray(reply.messages) && reply.messages.length > 0) {
+    return reply.messages.map((text) => ({ text }));
+  }
+  return [{ text: reply.text }];
+}
+
 async function resolveChatName(message) {
   if (message.notifyName) {
     return message.notifyName;
@@ -162,19 +175,17 @@ async function processMessage(client, message) {
     return;
   }
 
-  const parts =
-    Array.isArray(reply.messages) && reply.messages.length > 0
-      ? reply.messages
-      : [reply.text];
+  const parts = normalizeReplyParts(reply);
 
   if (reply.sendLogo) {
     try {
       const media = await getMenuLogoMessageMedia();
       if (media) {
-        await client.sendMessage(message.from, media, { caption: LOGO_CAPTION });
+        const opts = LOGO_CAPTION ? { caption: LOGO_CAPTION } : {};
+        await client.sendMessage(message.from, media, opts);
         messageStore.addOutgoing({
           to: message.from,
-          body: `[Logo] ${LOGO_CAPTION}`,
+          body: LOGO_CAPTION ? `[Logo] ${LOGO_CAPTION}` : '[Logo]',
           replyType: `${reply.type}-logo`,
           chatName,
         });
@@ -190,10 +201,14 @@ async function processMessage(client, message) {
       await new Promise((resolve) => setTimeout(resolve, 900));
     }
     const part = parts[i];
-    await client.sendMessage(message.from, part);
+    const sendOpts = {};
+    if (part.linkPreview === false) {
+      sendOpts.linkPreview = false;
+    }
+    await client.sendMessage(message.from, part.text, sendOpts);
     messageStore.addOutgoing({
       to: message.from,
-      body: part,
+      body: part.text,
       replyType: reply.type,
       chatName,
     });

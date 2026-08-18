@@ -10,6 +10,7 @@ const logger = require('../utils/logger');
 const { safeAsync } = require('../utils/asyncHandler');
 const {
   setReconnectAllowed,
+  setIgnoringDisconnect,
   resetReconnectAttempts,
 } = require('../handlers/connectionHandler');
 const { stopScheduler } = require('./schedulerService');
@@ -17,6 +18,10 @@ const settingsService = require('./settingsService');
 
 let bootClientFn = null;
 let connectInProgress = false;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function registerBootClient(fn) {
   bootClientFn = fn;
@@ -52,10 +57,13 @@ async function disconnect() {
   const client = global.whatsappClient;
 
   if (client) {
+    setIgnoringDisconnect(true);
     await safeAsync(async () => {
       await client.destroy();
     }, 'Desconectar WhatsApp');
     global.whatsappClient = null;
+    await sleep(1500);
+    setIgnoringDisconnect(false);
   }
 
   botStateService.updateState({
@@ -138,6 +146,7 @@ function startNewQr() {
     try {
       resetReconnectAttempts();
       setReconnectAllowed(false);
+      setIgnoringDisconnect(true);
       stopScheduler();
 
       const client = global.whatsappClient;
@@ -153,7 +162,9 @@ function startNewQr() {
       }
 
       global.whatsappClient = null;
+      await sleep(2500);
       clearSavedSession();
+      setIgnoringDisconnect(false);
       setReconnectAllowed(true);
 
       botStateService.updateState({
