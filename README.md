@@ -1,19 +1,18 @@
 # WhatsApp Bot Automatizador
 
-Bot profesional de WhatsApp con **respuestas automáticas por palabras clave** y **mensajes programados diarios**, construido con Node.js y [whatsapp-web.js](https://github.com/pedroslopez/whatsapp-web.js).
+Bot de WhatsApp para la parroquia **El Buen Pastor (Móstoles)**: menú interactivo, panel admin en el PC y webhook opcional de **WhatsApp Cloud API** para Vercel.
 
 ---
 
 ## Características
 
-- Conexión por WhatsApp Web con código QR
-- Sesión persistente (no escanear QR cada vez)
-- Respuestas automáticas: `horario`, `ubicacion`, `oracion`
-- Mensaje diario programado a las 8:00 AM
-- Reconexión automática si se pierde la conexión
-- Anti-crash y manejo de errores async
-- **ChatGPT (OpenAI)** para preguntas complejas (opcional)
-- Variables de entorno con `dotenv`
+- Conexión por WhatsApp Web (QR) en el PC de la iglesia
+- Panel admin en `http://localhost:3000` (menú, submenús, arrastrar opciones)
+- Tipos de opción: texto, enlace, reenvío a un número, submenú
+- Mensaje diario programado
+- Reconexión automática
+- **WhatsApp Cloud API + webhook** (`/webhook`) para desplegar en Vercel con tu dominio
+- ChatGPT opcional para preguntas de iglesia
 
 ---
 
@@ -21,30 +20,19 @@ Bot profesional de WhatsApp con **respuestas automáticas por palabras clave** y
 
 ```
 bots/
-├── index.js                 # Punto de entrada
-├── package.json
-├── .env                     # Configuración (no subir a Git)
-├── .env.example
-├── .gitignore
-├── config/
-│   ├── env.js               # Variables de entorno
-│   ├── client.js            # Cliente WhatsApp
-│   ├── keywords.js          # Palabras clave y respuestas
-│   └── openai.js            # Prompt y reglas de ChatGPT
-├── handlers/
-│   ├── messageHandler.js    # Listener de mensajes
-│   └── connectionHandler.js   # QR, ready, reconexión
-├── services/
-│   ├── autoReplyService.js  # Lógica de auto-respuesta
-│   ├── schedulerService.js    # Mensajes programados (cron)
-│   └── openaiService.js     # Integración ChatGPT
-├── utils/
-│   ├── logger.js            # Logs en consola
-│   ├── asyncHandler.js      # Errores async seguros
-│   ├── phone.js             # Formato de números/chatId
-│   └── complexMessage.js    # Detecta preguntas complejas
-└── sessions/                # Datos de sesión (ignorado por Git)
+├── index.js                 # Arranque: bot + panel
+├── vercel.json              # Despliegue del webhook en Vercel
+├── api/webhook.js           # Webhook Cloud API (Meta → Vercel)
+├── config/                  # .env, cliente WhatsApp, menú por defecto
+├── handlers/                # QR, conexión, mensajes
+├── services/                # Menú, settings, Cloud API, cron
+├── utils/                   # Formato del menú, emojis, enlaces
+├── web/                     # Panel Express (vistas EJS)
+├── public/                  # Logo de la iglesia
+└── sessions/                # Sesión WhatsApp Web (no subir a Git)
 ```
+
+El menú editable vive en `data/settings.json` (local) y, si está activo, en Firebase.
 
 ---
 
