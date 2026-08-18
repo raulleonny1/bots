@@ -4,9 +4,53 @@
 <div class="page-hero page-hero--compact">
   <img src="/assets/logo.png" alt="" class="page-hero__logo" width="56" height="56">
   <h1>Estado del bot</h1>
+  <% if (typeof cloudMode !== 'undefined' && cloudMode) { %>
+  <p>Panel en internet · WhatsApp Cloud API <span id="liveBadge" class="badge bg-secondary ms-1">Comprobando...</span></p>
+  <% } else { %>
   <p>WhatsApp y el panel corren en este mismo ordenador <span id="liveBadge" class="badge bg-secondary ms-1">Comprobando...</span></p>
+  <% } %>
 </div>
 
+<% if (typeof cloudMode !== 'undefined' && cloudMode) { %>
+<div class="howto-strip">
+  <div class="howto-step">
+    <span class="howto-step__num">1</span>
+    <div>
+      <strong>Panel</strong>
+      <p>Edita el menú y las respuestas aquí, desde cualquier sitio.</p>
+    </div>
+  </div>
+  <div class="howto-step">
+    <span class="howto-step__num">2</span>
+    <div>
+      <strong>Webhook</strong>
+      <p>En Meta pega: <code><%= webhookUrl %></code></p>
+    </div>
+  </div>
+  <div class="howto-step">
+    <span class="howto-step__num">3</span>
+    <div>
+      <strong>Firebase</strong>
+      <p><%= firebaseReady ? 'Conectado — el menú se guarda en la nube' : 'Falta configurar Firebase en Vercel' %></p>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4 border-0 dash-card">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-cloud-check me-2 text-success"></i> WhatsApp Cloud API
+  </div>
+  <div class="card-body">
+    <% if (bot.status === 'ready') { %>
+    <p class="mb-2"><span class="status-dot status-ready"></span> <strong>Listo para responder</strong> por la API oficial de Meta.</p>
+    <p class="small text-muted mb-0">No hace falta QR ni dejar un PC encendido. Los chats llegan al webhook y el bot responde solo.</p>
+    <% } else { %>
+    <p class="text-danger mb-2">Faltan <code>WHATSAPP_TOKEN</code> o <code>WHATSAPP_PHONE_NUMBER_ID</code> en Vercel.</p>
+    <p class="small text-muted mb-0">Impórtalos desde <code>vercel.env</code> y vuelve a desplegar.</p>
+    <% } %>
+  </div>
+</div>
+<% } else { %>
 <div class="howto-strip">
   <div class="howto-step">
     <span class="howto-step__num">1</span>
@@ -120,6 +164,7 @@
     </div>
   </div>
 </div>
+<% } %>
 
 <div class="row g-3 mb-4">
   <div class="col-md-3">
@@ -210,6 +255,7 @@ function updateControlButtons(s) {
 
 function showPanel(s) {
   const connected = document.getElementById('panelConnected');
+  if (!connected) return;
   const qr = document.getElementById('panelQr');
   const disc = document.getElementById('panelDisconnected');
   const load = document.getElementById('panelLoading');

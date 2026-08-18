@@ -9,12 +9,28 @@ const settingsService = require('../../services/settingsService');
 const messageStore = require('../../services/messageStore');
 const botStateService = require('../../services/botStateService');
 const { restartScheduler } = require('../../services/schedulerService');
-const whatsappControl = require('../../services/whatsappControl');
-const { requireAuth, redirectIfAuthenticated, handleLogin } = require('../middleware/auth');
+const { requireAuth, redirectIfAuthenticated, handleLogin, clearAuthCookie } = require('../middleware/auth');
+const { isCloudApiEnabled, publicBaseUrl, isVercel } = require('../../utils/runtime');
+const { isFirebaseReady } = require('../../config/firebase');
 
 const QR_IMAGE_OPTS = { width: 512, margin: 2, errorCorrectionLevel: 'M' };
 
 async function botWithQr() {
+  if (isCloudApiEnabled()) {
+    const configured = Boolean(config.whatsappCloud.token && config.whatsappCloud.phoneNumberId);
+    return {
+      status: configured ? 'ready' : 'disconnected',
+      pushname: 'WhatsApp Cloud API',
+      number: config.whatsappCloud.phoneNumberId || null,
+      reconnectAttempts: 0,
+      schedulerActive: false,
+      lastQr: null,
+      lastDisconnectReason: configured ? null : 'falta_token_cloud_api',
+      qrDataUrl: null,
+      cloudMode: true,
+    };
+  }
+
   botStateService.syncFromClient(global.whatsappClient);
   const bot = botStateService.getState();
   let qrDataUrl = null;
@@ -27,7 +43,7 @@ async function botWithQr() {
     }
   }
 
-  return { ...bot, qrDataUrl };
+  return { ...bot, qrDataUrl, cloudMode: false };
 }
 
 /** Imagen PNG del QR (mejor que data URL en otros PCs/navegadores) */
@@ -52,13 +68,17 @@ async function sendQrPng(res) {
 
 const router = express.Router();
 
-function getDashboardData() {
-  const port = config.admin.port;
+async function getDashboardData(req) {
+  const base = publicBaseUrl(req);
+  const cloudMode = isCloudApiEnabled();
   return {
-    bot: botStateService.getState(),
+    bot: await botWithQr(),
     settings: settingsService.getSettings(),
     stats: messageStore.getStats(),
-    localPanelUrl: `http://localhost:${port}`,
+    localPanelUrl: base,
+    cloudMode,
+    firebaseReady: isFirebaseReady(),
+    webhookUrl: `${base}/webhook`,
     config: {
       botName: config.botName,
       openaiEnvEnabled: config.openai.enabled,
@@ -74,15 +94,20 @@ router.get('/login', redirectIfAuthenticated, (req, res) => {
 router.post('/login', express.urlencoded({ extended: true }), handleLogin);
 
 router.post('/logout', (req, res) => {
-  req.session.destroy(() => {
-    res.redirect('/login');
-  });
+  if (req.session) req.session.authenticated = false;
+  clearAuthCookie(res);
+  if (req.session?.destroy) {
+    return req.session.destroy(() => {
+      res.redirect('/login');
+    });
+  }
+  res.redirect('/login');
 });
 
 router.use(requireAuth);
 
 router.get('/', async (req, res) => {
-  const data = getDashboardData();
+  const data = await getDashboardData(req);
   data.bot = await botWithQr();
 
   res.render('dashboard', {
@@ -106,7 +131,11 @@ router.get('/whatsapp-qr', async (req, res) => {
 });
 
 router.post('/api/whatsapp/disconnect', async (req, res) => {
+  if (isCloudApiEnabled()) {
+    return res.json({ ok: false, error: 'El panel en Vercel usa Cloud API. No hay QR ni desconexión de Chrome.' });
+  }
   try {
+    const whatsappControl = require('../../services/whatsappControl');
     await whatsappControl.disconnect();
     const botView = await botWithQr();
     res.json({ ok: true, bot: botView });
@@ -116,7 +145,11 @@ router.post('/api/whatsapp/disconnect', async (req, res) => {
 });
 
 router.post('/api/whatsapp/connect', async (req, res) => {
+  if (isCloudApiEnabled()) {
+    return res.json({ ok: false, error: 'El panel en Vercel usa Cloud API. Configura el webhook en Meta.' });
+  }
   try {
+    const whatsappControl = require('../../services/whatsappControl');
     whatsappControl.startConnect();
     const botView = await botWithQr();
     res.json({
@@ -130,7 +163,11 @@ router.post('/api/whatsapp/connect', async (req, res) => {
 });
 
 router.post('/api/whatsapp/reconnect', async (req, res) => {
+  if (isCloudApiEnabled()) {
+    return res.json({ ok: false, error: 'El panel en Vercel usa Cloud API. No hay reconexión QR.' });
+  }
   try {
+    const whatsappControl = require('../../services/whatsappControl');
     whatsappControl.startConnect();
     const botView = await botWithQr();
     res.json({ ok: true, bot: botView });
@@ -140,7 +177,11 @@ router.post('/api/whatsapp/reconnect', async (req, res) => {
 });
 
 router.post('/api/whatsapp/new-qr', async (req, res) => {
+  if (isCloudApiEnabled()) {
+    return res.json({ ok: false, error: 'El panel en Vercel usa Cloud API. No hay código QR.' });
+  }
   try {
+    const whatsappControl = require('../../services/whatsappControl');
     whatsappControl.startNewQr();
     const botView = await botWithQr();
     res.json({
@@ -153,9 +194,9 @@ router.post('/api/whatsapp/new-qr', async (req, res) => {
   }
 });
 
-router.get('/messages', (req, res) => {
+router.get('/messages', async (req, res) => {
   const direction = req.query.direction || 'all';
-  const messages = messageStore.getMessages({
+  const messages = await messageStore.getMessages({
     limit: 150,
     direction: direction === 'all' ? undefined : direction,
   });
@@ -188,7 +229,7 @@ router.get('/menu', (req, res) => {
   });
 });
 
-router.post('/settings/menu', express.urlencoded({ extended: true, limit: '2mb' }), (req, res) => {
+router.post('/settings/menu', express.urlencoded({ extended: true, limit: '2mb' }), async (req, res) => {
   const greetings = String(req.body.greetings || '')
     .split(',')
     .map((g) => g.trim())
@@ -210,6 +251,7 @@ router.post('/settings/menu', express.urlencoded({ extended: true, limit: '2mb' 
       options,
     },
   });
+  await settingsService.waitForSave();
 
   res.redirect('/menu?saved=1');
 });
@@ -227,7 +269,7 @@ router.get('/automations', (req, res) => {
   });
 });
 
-router.post('/settings/toggle', express.urlencoded({ extended: true }), (req, res) => {
+router.post('/settings/toggle', express.urlencoded({ extended: true }), async (req, res) => {
   const { field, value } = req.body;
   const allowed = ['responsesEnabled', 'keywordRepliesEnabled', 'menuEnabled', 'openaiRepliesEnabled'];
 
@@ -242,10 +284,11 @@ router.post('/settings/toggle', express.urlencoded({ extended: true }), (req, re
   }
 
   settingsService.saveSettings({ [field]: parsedValue });
+  await settingsService.waitForSave();
   res.redirect('/automations?saved=1');
 });
 
-router.post('/settings/keywords', express.urlencoded({ extended: true }), (req, res) => {
+router.post('/settings/keywords', express.urlencoded({ extended: true }), async (req, res) => {
   const triggersList = Array.isArray(req.body.triggers)
     ? req.body.triggers
     : [req.body.triggers].filter(Boolean);
@@ -264,10 +307,11 @@ router.post('/settings/keywords', express.urlencoded({ extended: true }), (req, 
     .filter((k) => k.triggers.length && k.response);
 
   settingsService.saveSettings({ keywords });
+  await settingsService.waitForSave();
   res.redirect('/automations?saved=1');
 });
 
-router.post('/settings/daily', express.urlencoded({ extended: true }), (req, res) => {
+router.post('/settings/daily', express.urlencoded({ extended: true }), async (req, res) => {
   const recipients = String(req.body.recipients || '')
     .split(',')
     .map((r) => r.trim())
@@ -281,17 +325,18 @@ router.post('/settings/daily', express.urlencoded({ extended: true }), (req, res
       recipients,
     },
   });
+  await settingsService.waitForSave();
 
   restartScheduler();
   res.redirect('/automations?saved=1');
 });
 
-router.get('/api/messages', (req, res) => {
+router.get('/api/messages', async (req, res) => {
   const direction = req.query.direction || 'all';
   const since = req.query.since;
 
   res.json({
-    messages: messageStore.getMessages({
+    messages: await messageStore.getMessages({
       limit: 150,
       direction: direction === 'all' ? undefined : direction,
       since,
@@ -300,8 +345,22 @@ router.get('/api/messages', (req, res) => {
   });
 });
 
-/** Tiempo real: Server-Sent Events (mensajes + estado del bot) */
+/** Tiempo real: SSE en el PC; en Vercel el panel hace polling a /api/status */
 router.get('/api/live', async (req, res) => {
+  if (isVercel() || isCloudApiEnabled()) {
+    const bot = await botWithQr();
+    return res.json({
+      type: 'status',
+      bot,
+      settings: {
+        responsesEnabled: settingsService.areResponsesEnabled(),
+        keywordRepliesEnabled: settingsService.areKeywordRepliesEnabled(),
+        openaiRepliesEnabled: settingsService.isOpenaiRepliesEnabled(),
+      },
+      stats: messageStore.getStats(),
+    });
+  }
+
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');

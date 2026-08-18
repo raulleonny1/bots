@@ -187,11 +187,12 @@ function saveSettings(partial) {
   }
 
   saveSettingsToDisk();
-  if (firestoreService.isFirebaseReady()) {
-    firestoreService.saveSettings(settings).catch((err) => {
-      logger.error('Error guardando settings en Firebase', { message: err.message });
-    });
-  }
+  const pending = firestoreService.isFirebaseReady()
+    ? firestoreService.saveSettings(settings).catch((err) => {
+        logger.error('Error guardando settings en Firebase', { message: err.message });
+      })
+    : Promise.resolve();
+  saveSettings.pending = pending;
 
   if (typeof onSettingsChange === 'function') {
     clearTimeout(saveSettings._debounce);
@@ -199,6 +200,10 @@ function saveSettings(partial) {
   }
 
   return settings;
+}
+
+function waitForSave() {
+  return saveSettings.pending || Promise.resolve();
 }
 
 function areResponsesEnabled() {
@@ -237,6 +242,7 @@ module.exports = {
   shouldKeepWhatsAppConnected,
   getMenuConfig,
   saveSettings,
+  waitForSave,
   areResponsesEnabled,
   areKeywordRepliesEnabled,
   isOpenaiRepliesEnabled,

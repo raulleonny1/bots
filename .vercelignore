@@ -1,0 +1,10 @@
+sessions
+.wwebjs_auth
+.wwebjs_cache
+.restore-point
+data/admin-sessions
+data/cache
+data/settings.json
+.env
+vercel.env
+*.log

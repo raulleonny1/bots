@@ -1,10 +1,7 @@
 /**
- * Tiempo real del panel admin (SSE).
- * El badge superior refleja el estado de WHATSAPP, no la conexion del panel.
+ * Actualización del panel (polling). En Vercel no se usa SSE.
  */
 (function () {
-  if (typeof EventSource === 'undefined') return;
-
   const liveBadge = document.getElementById('liveBadge');
   const WHATSAPP_BADGES = {
     ready: { text: 'WhatsApp conectado', className: 'badge bg-success' },
@@ -15,9 +12,6 @@
     starting: { text: 'Iniciando...', className: 'badge bg-secondary' },
   };
 
-  let lastWhatsAppStatus = null;
-  let lastStatusAt = 0;
-
   function setBadge(text, className) {
     if (!liveBadge) return;
     liveBadge.textContent = text;
@@ -26,57 +20,33 @@
 
   function updateBadgeFromWhatsApp(bot) {
     if (!bot || !bot.status) return;
-    lastWhatsAppStatus = bot.status;
-    lastStatusAt = Date.now();
     const cfg = WHATSAPP_BADGES[bot.status] || {
       text: bot.status,
       className: 'badge bg-secondary',
     };
+    if (bot.cloudMode && bot.status === 'ready') {
+      setBadge('Cloud API activa', 'badge bg-success');
+      return;
+    }
     setBadge(cfg.text, cfg.className);
   }
 
   window.updateLiveBadgeFromBot = updateBadgeFromWhatsApp;
 
-  const es = new EventSource('/api/live');
-
-  es.onopen = () => {
-    if (lastWhatsAppStatus) {
-      updateBadgeFromWhatsApp({ status: lastWhatsAppStatus });
-    }
-  };
-
-  es.onerror = () => {
-    // No confundir con WhatsApp: solo avisa si el panel dejo de recibir datos
-    const stale = Date.now() - lastStatusAt > 8000;
-    if (stale || !lastWhatsAppStatus) {
+  async function tick() {
+    try {
+      const res = await fetch('/api/status', { credentials: 'same-origin' });
+      if (res.status === 401) return;
+      const data = await res.json();
+      if (data.bot) updateBadgeFromWhatsApp(data.bot);
+      if (typeof window.onLiveStatus === 'function') {
+        window.onLiveStatus({ type: 'status', ...data });
+      }
+    } catch {
       setBadge('Panel sin actualizar', 'badge bg-secondary');
     }
-  };
+  }
 
-  es.onmessage = (event) => {
-    let data;
-    try {
-      data = JSON.parse(event.data);
-    } catch {
-      return;
-    }
-
-    if (data.type === 'status' && data.bot) {
-      updateBadgeFromWhatsApp(data.bot);
-    }
-
-    if (data.type === 'status' && typeof window.onLiveStatus === 'function') {
-      window.onLiveStatus(data);
-    }
-
-    if (data.type === 'message' && typeof window.onLiveMessage === 'function') {
-      window.onLiveMessage(data.message, data.stats);
-    }
-
-    if (data.type === 'update' && typeof window.onLiveUpdate === 'function') {
-      window.onLiveUpdate(data);
-    }
-  };
-
-  window.liveEventSource = es;
+  tick();
+  setInterval(tick, 4000);
 })();

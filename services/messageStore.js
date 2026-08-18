@@ -11,6 +11,7 @@ const MAX_MESSAGES = 500;
 const messages = [];
 const emitter = new EventEmitter();
 emitter.setMaxListeners(50);
+let lastRemoteLoad = 0;
 
 function addMessage(entry) {
   const record = {
@@ -41,8 +42,13 @@ async function init() {
   initFirebase();
   if (!firestoreService.isFirebaseReady()) return;
 
+  if (messages.length && Date.now() - lastRemoteLoad < 8000) {
+    return;
+  }
+
   try {
     const remote = await firestoreService.loadRecentMessages({ limit: MAX_MESSAGES });
+    lastRemoteLoad = Date.now();
     if (remote.length) {
       messages.length = 0;
       remote
@@ -78,7 +84,11 @@ function addOutgoing({ to, body, replyType, chatName }) {
   });
 }
 
-function getMessages({ limit = 100, direction, since } = {}) {
+async function getMessages({ limit = 100, direction, since } = {}) {
+  if (!messages.length) {
+    await init();
+  }
+
   let list = [...messages];
 
   if (direction === 'in' || direction === 'out') {
