@@ -1,6 +1,7 @@
 /**
  * Firebase Admin (Firestore) para el servidor del bot.
- * La config web del cliente va en .env; para escribir datos hace falta cuenta de servicio.
+ * En Vercel: FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY
+ * (o FIREBASE_SERVICE_ACCOUNT_JSON con el JSON entero).
  */
 
 const fs = require('fs');
@@ -12,17 +13,60 @@ let db = null;
 let initialized = false;
 let initError = null;
 
-function resolveServiceAccount() {
-  const inline = {
-    projectId: config.firebase.projectId,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    privateKey: process.env.FIREBASE_PRIVATE_KEY
-      ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
-      : undefined,
-  };
+function stripEnvQuotes(value) {
+  let s = String(value || '').trim();
+  if (
+    (s.startsWith('"') && s.endsWith('"')) ||
+    (s.startsWith("'") && s.endsWith("'"))
+  ) {
+    s = s.slice(1, -1);
+  }
+  return s.trim();
+}
 
-  if (inline.clientEmail && inline.privateKey) {
-    return inline;
+/** Vercel a menudo guarda la key con \n literales o sin saltos. */
+function normalizePrivateKey(raw) {
+  let key = stripEnvQuotes(raw);
+  if (!key) return '';
+  key = key.replace(/\\n/g, '\n').replace(/\r\n/g, '\n');
+  if (key.includes('BEGIN') && !key.includes('\n')) {
+    key = key
+      .replace(/-----BEGIN PRIVATE KEY-----/, '-----BEGIN PRIVATE KEY-----\n')
+      .replace(/-----END PRIVATE KEY-----/, '\n-----END PRIVATE KEY-----\n')
+      .replace(/-----BEGIN RSA PRIVATE KEY-----/, '-----BEGIN RSA PRIVATE KEY-----\n')
+      .replace(/-----END RSA PRIVATE KEY-----/, '\n-----END RSA PRIVATE KEY-----\n');
+  }
+  return key;
+}
+
+function resolveServiceAccount() {
+  const jsonRaw = stripEnvQuotes(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '');
+  if (jsonRaw) {
+    try {
+      const parsed = JSON.parse(jsonRaw);
+      if (parsed.private_key) {
+        parsed.private_key = normalizePrivateKey(parsed.private_key);
+      }
+      return parsed;
+    } catch (error) {
+      initError = `FIREBASE_SERVICE_ACCOUNT_JSON inválido: ${error.message}`;
+      return null;
+    }
+  }
+
+  const clientEmail = stripEnvQuotes(process.env.FIREBASE_CLIENT_EMAIL || '');
+  const privateKey = normalizePrivateKey(process.env.FIREBASE_PRIVATE_KEY || '');
+  const projectId = stripEnvQuotes(
+    process.env.FIREBASE_PROJECT_ID || config.firebase.projectId || ''
+  );
+
+  if (clientEmail && privateKey) {
+    return {
+      type: 'service_account',
+      project_id: projectId,
+      client_email: clientEmail,
+      private_key: privateKey,
+    };
   }
 
   const accountPath = config.firebase.serviceAccountPath;
@@ -41,6 +85,7 @@ function resolveServiceAccount() {
 
 function initFirebase() {
   if (!config.firebase.enabled) {
+    initError = 'FIREBASE_ENABLED no es true';
     return false;
   }
 
@@ -55,22 +100,28 @@ function initFirebase() {
     const credentialData = resolveServiceAccount();
 
     if (!credentialData) {
-      initError = 'Falta firebase-service-account.json o FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY';
-      logger.warn('Firebase activado en .env pero sin cuenta de servicio', {
-        hint: 'Firebase Console → Configuración → Cuentas de servicio → Generar clave',
-      });
+      initError =
+        initError ||
+        'Falta FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY (o FIREBASE_SERVICE_ACCOUNT_JSON)';
+      logger.warn('Firebase activado pero sin cuenta de servicio', { detail: initError });
       return false;
     }
 
     if (!admin.apps.length) {
       admin.initializeApp({
         credential: admin.credential.cert(credentialData),
-        projectId: config.firebase.projectId,
+        projectId:
+          credentialData.project_id ||
+          credentialData.projectId ||
+          config.firebase.projectId,
       });
     }
 
     db = admin.firestore();
-    logger.success('Firebase Firestore conectado', { projectId: config.firebase.projectId });
+    initError = null;
+    logger.success('Firebase Firestore conectado', {
+      projectId: config.firebase.projectId,
+    });
     return true;
   } catch (error) {
     initError = error.message;

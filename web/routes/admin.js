@@ -11,7 +11,7 @@ const botStateService = require('../../services/botStateService');
 const { restartScheduler } = require('../../services/schedulerService');
 const { requireAuth, redirectIfAuthenticated, handleLogin, clearAuthCookie } = require('../middleware/auth');
 const { isCloudApiEnabled, publicBaseUrl, isVercel } = require('../../utils/runtime');
-const { isFirebaseReady } = require('../../config/firebase');
+const { isFirebaseReady, getInitError } = require('../../config/firebase');
 const logger = require('../../utils/logger');
 
 const QR_IMAGE_OPTS = { width: 512, margin: 2, errorCorrectionLevel: 'M' };
@@ -79,6 +79,7 @@ async function getDashboardData(req) {
     localPanelUrl: base,
     cloudMode,
     firebaseReady: isFirebaseReady(),
+    firebaseError: getInitError() || null,
     webhookUrl: `${base}/webhook`,
     config: {
       botName: config.botName,
@@ -150,6 +151,7 @@ router.get('/', async (req, res, next) => {
       cloudMode: true,
       webhookUrl: data.webhookUrl || 'https://www.botselbuenpastor.online/webhook',
       firebaseReady: Boolean(data.firebaseReady),
+      firebaseError: data.firebaseError || null,
       menuSaved: req.query.menuSaved === '1',
       menuError: req.query.menuError === '1',
     });

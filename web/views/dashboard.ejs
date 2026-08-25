@@ -46,7 +46,16 @@
     <span class="howto-step__num">3</span>
     <div>
       <strong>Firebase</strong>
-      <p><%= typeof firebaseReady !== 'undefined' && firebaseReady ? 'Conectado' : 'Revisa variables en Vercel' %></p>
+      <% if (typeof firebaseReady !== 'undefined' && firebaseReady) { %>
+      <p class="text-success mb-0">Conectado</p>
+      <% } else { %>
+      <p class="text-danger mb-0">No conectado</p>
+      <% if (typeof firebaseError !== 'undefined' && firebaseError) { %>
+      <p class="small text-muted mb-0"><%= firebaseError %></p>
+      <% } else { %>
+      <p class="small text-muted mb-0">Revisa variables en Vercel</p>
+      <% } %>
+      <% } %>
     </div>
   </div>
 </div>
