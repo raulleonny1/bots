@@ -253,19 +253,23 @@ router.post('/messages/clear', async (req, res) => {
   res.redirect('/messages');
 });
 
-router.get('/menu', (req, res) => {
-  const settings = settingsService.getSettings();
-  res.render('menu', {
-    title: 'Panel — Editar menu',
-    settings,
-    menu: settingsService.getMenuConfig(),
-    config: {
-      openaiEnvEnabled: config.openai.enabled,
-      openaiPanelEnabled: settingsService.isOpenaiRepliesEnabled(),
-    },
-    saved: req.query.saved === '1',
-    saveError: req.query.error === '1',
-  });
+router.get('/menu', (req, res, next) => {
+  try {
+    const settings = settingsService.getSettings();
+    res.render('menu', {
+      title: 'Panel — Editar menu',
+      settings,
+      menu: settingsService.getMenuConfig(),
+      config: {
+        openaiEnvEnabled: config.openai.enabled,
+        openaiUiEnabled: settingsService.isOpenaiRepliesEnabled(),
+      },
+      saved: req.query.saved === '1',
+      saveError: req.query.error === '1',
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 router.post('/settings/menu', express.urlencoded({ extended: true, limit: '2mb' }), async (req, res) => {
@@ -282,17 +286,20 @@ router.post('/settings/menu', express.urlencoded({ extended: true, limit: '2mb' 
     return res.redirect('/menu?error=1');
   }
 
-  settingsService.saveSettings({
-    menu: {
-      intro: req.body.intro || '',
-      footer: req.body.footer || '',
-      greetings,
-      options,
-    },
-  });
-  await settingsService.waitForSave();
-
-  res.redirect('/menu?saved=1');
+  try {
+    settingsService.saveSettings({
+      menu: {
+        intro: req.body.intro || '',
+        footer: req.body.footer || '',
+        greetings,
+        options,
+      },
+    });
+    await settingsService.waitForSave();
+    return res.redirect('/menu?saved=1');
+  } catch (error) {
+    return res.redirect('/menu?error=1');
+  }
 });
 
 router.get('/automations', (req, res) => {
