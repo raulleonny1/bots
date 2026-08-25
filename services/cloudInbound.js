@@ -140,7 +140,7 @@ async function processCloudMessage(inbound) {
     if (reply.sendLogo && config.whatsappCloud.logoUrl) {
       try {
         await cloudApi.sendImage(chatId, config.whatsappCloud.logoUrl);
-        await new Promise((resolve) => setTimeout(resolve, 400));
+        await new Promise((resolve) => setTimeout(resolve, 80));
       } catch (error) {
         logger.warn('Cloud API: no se pudo enviar el logo', { message: error.message });
       }

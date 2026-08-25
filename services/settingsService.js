@@ -18,6 +18,8 @@ const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 let settings = null;
 let onSettingsChange = null;
 let settingsFileMtime = 0;
+let lastRemoteSyncAt = 0;
+const REMOTE_SYNC_TTL_MS = 60_000;
 
 function defaultSettings() {
   return {
@@ -118,12 +120,17 @@ async function persistSettings() {
 
 /**
  * Carga settings locales y sincroniza con Firestore si está activo.
+ * En Vercel evita releer Firebase en cada webhook (TTL ~60s).
  */
 async function init() {
   loadSettings();
   initFirebase();
 
   if (!firestoreService.isFirebaseReady()) {
+    return settings;
+  }
+
+  if (settings && Date.now() - lastRemoteSyncAt < REMOTE_SYNC_TTL_MS) {
     return settings;
   }
 
@@ -140,6 +147,7 @@ async function init() {
       await firestoreService.saveSettings(getSettings());
       logger.info('Configuracion subida a Firebase por primera vez');
     }
+    lastRemoteSyncAt = Date.now();
   } catch (error) {
     logger.warn('Firebase settings no disponible, usando archivo local', {
       message: error.message,
@@ -187,6 +195,7 @@ function saveSettings(partial) {
   }
 
   saveSettingsToDisk();
+  lastRemoteSyncAt = Date.now();
   const pending = firestoreService.isFirebaseReady()
     ? firestoreService.saveSettings(settings).catch((err) => {
         logger.error('Error guardando settings en Firebase', { message: err.message });

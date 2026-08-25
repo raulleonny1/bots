@@ -71,8 +71,9 @@ async function sendParts(to, parts) {
     const part = parts[i];
     const text = typeof part === 'string' ? part : part?.text;
     if (!text) continue;
+    // Pausa corta para orden en WhatsApp; 400ms sumaba mucho con varios bloques.
     if (i > 0) {
-      await new Promise((resolve) => setTimeout(resolve, 400));
+      await new Promise((resolve) => setTimeout(resolve, 80));
     }
     results.push(await sendText(to, text));
   }
