@@ -71,7 +71,12 @@ function createApp() {
 
   app.use(attachAuth);
 
-  app.use(async (_req, res, next) => {
+  app.use(async (req, res, next) => {
+    // Webhook ya está montado arriba; esto solo aplica al panel.
+    const pathName = req.path || '';
+    if (pathName.startsWith('/webhook') || pathName.startsWith('/api/webhook')) {
+      return next();
+    }
     try {
       await settingsService.init();
       await messageStore.init();

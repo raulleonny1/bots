@@ -1,9 +1,8 @@
 /**
  * Procesa un mensaje entrante de WhatsApp Cloud API (webhook de Meta).
- * Menú con botones/lista táctil (estilo banca).
+ * Prioridad: responder YA (typing + botones); Firebase en paralelo / después.
  */
 
-const { config } = require('../config/env');
 const logger = require('../utils/logger');
 const settingsService = require('./settingsService');
 const messageStore = require('./messageStore');
@@ -12,6 +11,22 @@ const chatSessionStore = require('./chatSessionStore');
 const firestoreService = require('./firestoreService');
 const cloudApi = require('./whatsappCloudApi');
 const { getAutoReply } = require('./autoReplyService');
+
+/** Anti-duplicados en la misma instancia (sin esperar a Firebase). */
+const seenMessageIds = new Map();
+
+function claimLocal(messageId) {
+  if (!messageId) return true;
+  const now = Date.now();
+  if (seenMessageIds.size > 800) {
+    for (const [id, at] of seenMessageIds) {
+      if (now - at > 15 * 60 * 1000) seenMessageIds.delete(id);
+    }
+  }
+  if (seenMessageIds.has(messageId)) return false;
+  seenMessageIds.set(messageId, now);
+  return true;
+}
 
 function inboundText(message) {
   if (!message) return '';
@@ -78,21 +93,26 @@ function normalizeReplyParts(reply) {
   return [{ text: reply.text }];
 }
 
+function needsSession(body) {
+  if (!body) return false;
+  if (menuService.isMenuCommand(body) || menuService.isGreeting(body)) return false;
+  return true;
+}
+
 async function processCloudMessage(inbound) {
   const chatId = inbound.from;
   const body = inbound.body || '';
   const chatName = inbound.chatName || chatId;
 
-  // “Escribiendo…” al instante (como apps de banco)
-  const typingPromise = cloudApi.markReadWithTyping(inbound.id);
+  // 1) Feedback inmediato al usuario (no bloquea)
+  cloudApi.markReadWithTyping(inbound.id).catch(() => {});
 
-  const claimed = await firestoreService.claimProcessedMessage(inbound.id);
-  if (!claimed) {
-    logger.info('Webhook duplicado ignorado', { id: inbound.id });
+  // 2) Deduplicar sin round-trip a Firebase
+  if (!claimLocal(inbound.id)) {
+    logger.info('Webhook duplicado (local) ignorado', { id: inbound.id });
     return;
   }
-
-  await typingPromise;
+  firestoreService.claimProcessedMessage(inbound.id).catch(() => {});
 
   messageStore.addIncoming({
     from: chatId,
@@ -105,8 +125,13 @@ async function processCloudMessage(inbound) {
     return;
   }
 
-  const session = await chatSessionStore.load(chatId);
-  menuService.hydrateChatState(chatId, session);
+  // 3) Sesión: menú/hola no necesita leer Firebase
+  if (needsSession(body)) {
+    const session = await chatSessionStore.load(chatId);
+    menuService.hydrateChatState(chatId, session);
+  } else {
+    menuService.hydrateChatState(chatId, chatSessionStore.emptyState());
+  }
 
   const fakeMessage = {
     from: chatId,
@@ -121,7 +146,8 @@ async function processCloudMessage(inbound) {
       body &&
       !menuService.isMenuCommand(body) &&
       !menuService.isGreeting(body) &&
-      !/^opt_/i.test(body)
+      !/^opt_/i.test(body) &&
+      !/^nav_/i.test(body)
     ) {
       const target = menuService.getForwardTarget(chatId);
       if (target?.phone) {
@@ -144,7 +170,7 @@ async function processCloudMessage(inbound) {
           logger.error('Cloud API: error al reenviar', { message: error.message });
           await cloudApi.sendText(
             chatId,
-            'No pudimos enviar el mensaje ahora. Prueba el enlace de WhatsApp o escribe *menu*.'
+            'No pudimos enviar el mensaje ahora. Escribe *menu*.'
           );
         }
         return;
@@ -154,6 +180,7 @@ async function processCloudMessage(inbound) {
     const reply = await getAutoReply(fakeMessage, chatId);
     if (!reply) return;
 
+    // 4) Responder YA
     if (reply.interactive) {
       try {
         await cloudApi.sendInteractive(chatId, reply.interactive);
@@ -191,7 +218,10 @@ async function processCloudMessage(inbound) {
       parts: parts.length,
     });
   } finally {
-    await chatSessionStore.save(chatId, menuService.exportChatState(chatId));
+    // Memoria inmediata; Firebase en segundo plano
+    chatSessionStore.save(chatId, menuService.exportChatState(chatId)).catch((err) => {
+      logger.warn('No se pudo guardar sesión de chat', { message: err.message });
+    });
   }
 }
 

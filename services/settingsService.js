@@ -19,7 +19,7 @@ let settings = null;
 let onSettingsChange = null;
 let settingsFileMtime = 0;
 let lastRemoteSyncAt = 0;
-const REMOTE_SYNC_TTL_MS = process.env.VERCEL ? 8_000 : 5_000;
+const REMOTE_SYNC_TTL_MS = process.env.VERCEL ? 60_000 : 5_000;
 
 function defaultSettings() {
   return {

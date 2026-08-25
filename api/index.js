@@ -12,8 +12,9 @@ let app;
 async function getApp() {
   if (app) return app;
   initFirebase();
+  // Solo settings (menú). Los mensajes del panel se cargan después, no bloquean el webhook.
   await settingsService.init();
-  await messageStore.init();
+  messageStore.init().catch(() => {});
   app = createApp();
   return app;
 }

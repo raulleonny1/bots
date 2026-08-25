@@ -42,7 +42,8 @@ async function save(chatId, state) {
     forward: state.forward || null,
   };
   memory.set(chatId, next);
-  await firestoreService.saveChatState(chatId, next);
+  // No bloquea la respuesta de WhatsApp
+  firestoreService.saveChatState(chatId, next).catch(() => {});
 }
 
 module.exports = { load, save, emptyState };
