@@ -12,6 +12,7 @@ const { restartScheduler } = require('../../services/schedulerService');
 const { requireAuth, redirectIfAuthenticated, handleLogin, clearAuthCookie } = require('../middleware/auth');
 const { isCloudApiEnabled, publicBaseUrl, isVercel } = require('../../utils/runtime');
 const { isFirebaseReady } = require('../../config/firebase');
+const logger = require('../../utils/logger');
 
 const QR_IMAGE_OPTS = { width: 512, margin: 2, errorCorrectionLevel: 'M' };
 
@@ -149,6 +150,8 @@ router.get('/', async (req, res, next) => {
       cloudMode: true,
       webhookUrl: data.webhookUrl || 'https://www.botselbuenpastor.online/webhook',
       firebaseReady: Boolean(data.firebaseReady),
+      menuSaved: req.query.menuSaved === '1',
+      menuError: req.query.menuError === '1',
     });
   } catch (error) {
     next(error);
@@ -283,7 +286,7 @@ router.post('/settings/menu', express.urlencoded({ extended: true, limit: '2mb' 
     const parsed = JSON.parse(String(req.body.menuTree || '[]'));
     options = Array.isArray(parsed) ? parsed : [];
   } catch {
-    return res.redirect('/menu?error=1');
+    return res.redirect(303, '/?menuError=1');
   }
 
   try {
@@ -296,9 +299,11 @@ router.post('/settings/menu', express.urlencoded({ extended: true, limit: '2mb' 
       },
     });
     await settingsService.waitForSave();
-    return res.redirect(303, '/menu?saved=1');
+    // El dashboard / sí carga en Vercel; /menu?saved=1 a veces daba 404 tras el POST.
+    return res.redirect(303, '/?menuSaved=1');
   } catch (error) {
-    return res.redirect(303, '/menu?error=1');
+    logger.error('Error guardando menú', { message: error.message });
+    return res.redirect(303, '/?menuError=1');
   }
 });
 

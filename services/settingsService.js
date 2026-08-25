@@ -19,7 +19,7 @@ let settings = null;
 let onSettingsChange = null;
 let settingsFileMtime = 0;
 let lastRemoteSyncAt = 0;
-const REMOTE_SYNC_TTL_MS = 60_000;
+const REMOTE_SYNC_TTL_MS = 5_000;
 
 function defaultSettings() {
   return {
@@ -204,11 +204,19 @@ function saveSettings(partial) {
 
   saveSettingsToDisk();
   lastRemoteSyncAt = Date.now();
-  const pending = firestoreService.isFirebaseReady()
-    ? firestoreService.saveSettings(settings).catch((err) => {
-        logger.error('Error guardando settings en Firebase', { message: err.message });
-      })
-    : Promise.resolve();
+
+  let pending = Promise.resolve();
+  if (firestoreService.isFirebaseReady()) {
+    pending = firestoreService.saveSettings(settings).then((ok) => {
+      if (!ok) {
+        throw new Error('Firebase no guardó la configuración');
+      }
+    });
+  } else if (process.env.VERCEL) {
+    pending = Promise.reject(
+      new Error('Firebase no está conectado en Vercel: el menú no se puede guardar')
+    );
+  }
   saveSettings.pending = pending;
 
   if (typeof onSettingsChange === 'function') {

@@ -12,6 +12,21 @@
   </p>
 </div>
 
+<% if (typeof menuSaved !== 'undefined' && menuSaved) { %>
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+  Menú guardado en Firebase. Ya está activo en WhatsApp (prueba en unos segundos).
+  <a href="/menu" class="alert-link">Volver al menú</a>
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+</div>
+<% } %>
+<% if (typeof menuError !== 'undefined' && menuError) { %>
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+  No se pudo guardar el menú en Firebase. Revisa en Vercel: <code>FIREBASE_ENABLED</code>, email y private key.
+  <a href="/menu" class="alert-link">Reintentar</a>
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+</div>
+<% } %>
+
 <div class="howto-strip">
   <div class="howto-step">
     <span class="howto-step__num">1</span>
