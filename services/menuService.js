@@ -8,6 +8,7 @@ const logger = require('../utils/logger');
 const { digitsOnly, buildWaMeLink } = require('../utils/whatsappLink');
 const { getLinkDisplayName, buildSplitLinkReply } = require('../utils/linkReply');
 const { toChatId } = require('../utils/phone');
+const { cleanResponseText } = require('../utils/menuTree');
 const {
   formatWhatsAppMainMenu,
   formatWhatsAppSubmenu,
@@ -138,19 +139,27 @@ function getRedirectName(option) {
   return String(option?.label || '').trim() || 'tu solicitud';
 }
 
+/** Quita avisos de "escribe menu" pegados al final del texto (evita duplicados). */
+function stripMenuNavHints(text) {
+  return cleanResponseText(text);
+}
+
 function buildTextReply(option, inSubmenu) {
-  const body = String(option.response || '').trim();
-  const nav = inSubmenu
-    ? '_Elige otro número, *atrás* para volver o *menu* para el inicio._'
-    : '_Escribe *menu* para volver al inicio._';
-  const text = `${body || `Información sobre ${option.label}.`}\n\n${nav}`;
-  return { text, multiMessage: false };
+  const body =
+    stripMenuNavHints(option.response) || `Información sobre ${option.label}.`;
+  // Solo en submenú: hint de *atrás*. El aviso de *menu* ya está en el menú principal.
+  if (inSubmenu) {
+    return {
+      text: `${body}\n\n_Escribe *atrás* para volver._`,
+      multiMessage: false,
+    };
+  }
+  return { text: body, multiMessage: false };
 }
 
 function buildLinkReply(option, inSubmenu) {
   const linkUrl = String(option.linkUrl || '').trim();
-  const custom = String(option.response || '').trim();
-  const nav = '_Escribe *menu* para volver._';
+  const custom = stripMenuNavHints(option.response);
   if (!linkUrl) {
     return buildTextReply(option, inSubmenu);
   }
@@ -158,7 +167,7 @@ function buildLinkReply(option, inSubmenu) {
   return buildSplitLinkReply({
     intro: custom,
     linkUrl,
-    nav,
+    nav: inSubmenu ? '_Escribe *atrás* para volver._' : '',
     displayName: getLinkDisplayName(option),
   });
 }
@@ -167,13 +176,15 @@ function buildForwardReply(option, inSubmenu) {
   const name = getRedirectName(option);
   const phone = resolveOptionPhone(option);
   const waLink = phone ? buildWaMeLink(phone, '') : null;
-  const custom = String(option.response || '').trim();
-  const nav = '_Escribe *menu* para volver._';
+  const custom = stripMenuNavHints(option.response);
+  const nav = inSubmenu ? '_Escribe *atrás* para volver._' : '';
 
   if (!phone && !waLink) {
     const text = custom
-      ? `${custom}\n\n${nav}`
-      : `No hay un número configurado para ${name}.\n\n${nav}`;
+      ? nav
+        ? `${custom}\n\n${nav}`
+        : custom
+      : `No hay un número configurado para ${name}.`;
     return { text, multiMessage: false, phone: null };
   }
 

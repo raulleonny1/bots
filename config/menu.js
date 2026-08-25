@@ -25,14 +25,14 @@ const defaultMenu = {
       type: 'text',
       label: 'Horarios de atención y cultos',
       response:
-        '🕐 *Horarios de atención*\n\nNuestros cultos son *miércoles y sábado a las 7:00 PM*.\n\nEscribe *menu* para más opciones.',
+        '🕐 *Horarios de atención*\n\nNuestros cultos son *miércoles y sábado a las 7:00 PM*.',
     },
     {
       id: 2,
       type: 'text',
       label: 'Programa de alimento',
       response:
-        '🍞 *Programa de alimento*\n\nGracias por tu interés. Acércate en culto o escribe *menu* para más opciones.',
+        '🍞 *Programa de alimento*\n\nGracias por tu interés. Acércate en culto para más información.',
     },
     {
       id: 3,

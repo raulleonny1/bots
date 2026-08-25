@@ -16,6 +16,15 @@ function digits(value) {
   return String(value || '').replace(/\D/g, '');
 }
 
+/** Quita avisos de "escribe menu" al final (el menú principal ya lo indica). */
+function cleanResponseText(text) {
+  let out = String(text || '').trim();
+  out = out.replace(/\s+o\s+escribe\s+\*?menu\*?\s+[^.]*\.?/gi, '.');
+  out = out.replace(/\n{0,2}_?Escribe\s+\*?menu\*?\s+[^\n]*_?\s*$/gi, '');
+  out = out.replace(/\.\s*\./g, '.').trim();
+  return out;
+}
+
 function inferType(opt) {
   const t = String(opt?.type || '').toLowerCase().trim();
   if (TYPES.includes(t)) return t;
@@ -79,7 +88,7 @@ function normalizeOption(opt, index, beliefsItems, depth) {
     id: opt.id ?? index + 1,
     type,
     label: String(opt.label || '').trim(),
-    response: String(opt.response || '').trim(),
+    response: cleanResponseText(opt.response),
     linkUrl,
     whatsappPhone: type === 'forward' ? phone : '',
     whatsappPresetText: type === 'forward' ? String(opt.whatsappPresetText || '').trim() : '',
@@ -133,4 +142,5 @@ module.exports = {
   mergeMenuTree,
   looksLikeCreencias,
   looksLikeForwardContact,
+  cleanResponseText,
 };

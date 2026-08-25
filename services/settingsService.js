@@ -137,17 +137,25 @@ async function init() {
   try {
     const remote = await firestoreService.getSettings();
     if (remote && remote.updatedAt) {
+      const previousMenuJson = JSON.stringify(remote.menu || null);
       settings = { ...defaultSettings(), ...remote };
       settings.keywords = remote.keywords || defaultSettings().keywords;
       settings.dailyMessage = { ...defaultSettings().dailyMessage, ...remote.dailyMessage };
       settings.menu = mergeMenu(remote.menu);
       saveSettingsToDisk();
+      lastRemoteSyncAt = Date.now();
       logger.info('Configuracion cargada desde Firebase');
+      // Si el merge limpió textos, guarda en Firebase una sola vez.
+      if (previousMenuJson !== JSON.stringify(settings.menu)) {
+        firestoreService.saveSettings(settings).catch((err) => {
+          logger.warn('No se pudo sincronizar menu limpio a Firebase', { message: err.message });
+        });
+      }
     } else {
       await firestoreService.saveSettings(getSettings());
+      lastRemoteSyncAt = Date.now();
       logger.info('Configuracion subida a Firebase por primera vez');
     }
-    lastRemoteSyncAt = Date.now();
   } catch (error) {
     logger.warn('Firebase settings no disponible, usando archivo local', {
       message: error.message,

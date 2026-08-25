@@ -24,7 +24,11 @@ function buildSplitLinkReply({ intro, linkUrl, nav, displayName, kind }) {
     ? `📱 Toca *Comenzar a chatear* en el siguiente mensaje para escribir a *${label}*.`
     : `🔗 En el siguiente mensaje tienes el enlace:\n*${label}*`;
 
-  const mainText = intro ? `${intro}\n\n${cta}\n\n${nav}` : `${cta}\n\n${nav}`;
+  const chunks = [];
+  if (intro) chunks.push(intro);
+  chunks.push(cta);
+  if (nav) chunks.push(nav);
+  const mainText = chunks.join('\n\n');
 
   return {
     text: mainText,
