@@ -37,8 +37,8 @@ function createApp() {
   app.use('/webhook', express.raw({ type: '*/*' }), whatsappWebhook);
   app.use('/api/webhook', express.raw({ type: '*/*' }), whatsappWebhook);
 
-  app.use(express.urlencoded({ extended: true }));
-  app.use(express.json());
+  app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+  app.use(express.json({ limit: '2mb' }));
   app.use('/public', express.static(path.join(__dirname, 'public')));
   app.use('/assets', express.static(path.join(__dirname, '..', 'public')));
 
@@ -87,11 +87,11 @@ function createApp() {
 
   app.use((req, res) => {
     if (req.xhr || (req.headers.accept || '').includes('application/json')) {
-      return res.status(404).json({ ok: false, error: 'No encontrado' });
+      return res.status(404).json({ ok: false, error: 'No encontrado', path: req.url });
     }
     res.status(404).render('error', {
       title: 'No encontrado',
-      message: 'Pagina no encontrada',
+      message: `Pagina no encontrada (${req.method} ${req.url})`,
     });
   });
 

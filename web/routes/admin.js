@@ -296,9 +296,9 @@ router.post('/settings/menu', express.urlencoded({ extended: true, limit: '2mb' 
       },
     });
     await settingsService.waitForSave();
-    return res.redirect('/menu?saved=1');
+    return res.redirect(303, '/menu?saved=1');
   } catch (error) {
-    return res.redirect('/menu?error=1');
+    return res.redirect(303, '/menu?error=1');
   }
 });
 

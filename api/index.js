@@ -18,31 +18,41 @@ async function getApp() {
   return app;
 }
 
-function isApiEntryPath(url) {
-  return Boolean(url && /^\/api(\/index(\.js)?)?\/?(\?|$)/.test(String(url)));
-}
-
 /**
- * En Vercel el rewrite a /api a veces deja req.url como /api o /api/index.
- * No usar x-invoke-path: es la función, no la página, y al pisar /menu salía 404.
+ * Vercel rewrite manda todo a /api y a veces pierde /menu, /messages, etc.
+ * Recuperamos la ruta desde ?__path= (vercel.json) o cabeceras reales.
  */
 function normalizeUrl(req) {
+  const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost';
+  let raw = String(req.url || '/');
+
+  try {
+    const u = new URL(raw, `https://${host}`);
+    if (u.searchParams.has('__path')) {
+      const p = String(u.searchParams.get('__path') || '').replace(/^\/+/, '');
+      u.searchParams.delete('__path');
+      const q = u.searchParams.toString();
+      const pathname = p ? `/${p}` : '/';
+      raw = q ? `${pathname}?${q}` : pathname;
+    }
+  } catch {
+    // keep raw
+  }
+
   const forwarded = req.headers['x-forwarded-uri'] || req.headers['x-original-uri'];
   if (
+    (!raw || raw === '/' || /^\/api(\/index(\.js)?)?\/?(\?|$)/.test(raw)) &&
     forwarded &&
     typeof forwarded === 'string' &&
     forwarded.startsWith('/') &&
-    !isApiEntryPath(forwarded)
+    !/^\/api(\/index(\.js)?)?\/?(\?|$)/.test(forwarded)
   ) {
-    req.url = forwarded;
-    return;
+    raw = forwarded;
   }
 
-  const current = String(req.url || '/');
-  if (!isApiEntryPath(current)) return;
-
-  const query = current.includes('?') ? current.slice(current.indexOf('?')) : '';
-  req.url = query ? `/${query}` : '/';
+  if (!raw.startsWith('/')) raw = `/${raw}`;
+  req.url = raw;
+  req.originalUrl = raw;
 }
 
 module.exports = async function handler(req, res) {
