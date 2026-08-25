@@ -91,7 +91,19 @@ function createApp() {
     }
     res.status(404).render('error', {
       title: 'No encontrado',
-      message: 'Página no encontrada',
+      message: 'Pagina no encontrada',
+    });
+  });
+
+  app.use((err, req, res, _next) => {
+    logger.error('Error en panel', { message: err.message, path: req.path });
+    if (res.headersSent) return;
+    if (req.xhr || (req.headers.accept || '').includes('application/json')) {
+      return res.status(500).json({ ok: false, error: err.message });
+    }
+    res.status(500).render('error', {
+      title: 'Error',
+      message: err.message || 'Error interno del panel',
     });
   });
 

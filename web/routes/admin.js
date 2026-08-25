@@ -140,14 +140,19 @@ router.post('/logout', (req, res) => {
 
 router.use(requireAuth);
 
-router.get('/', async (req, res) => {
-  const data = await getDashboardData(req);
-  data.bot = await botWithQr();
-
-  res.render('dashboard', {
-    title: 'Panel — Estado',
-    ...data,
-  });
+router.get('/', async (req, res, next) => {
+  try {
+    const data = await getDashboardData(req);
+    res.render('dashboard', {
+      title: 'Panel - Estado',
+      ...data,
+      cloudMode: true,
+      webhookUrl: data.webhookUrl || 'https://www.botselbuenpastor.online/webhook',
+      firebaseReady: Boolean(data.firebaseReady),
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 router.get('/api/whatsapp/qr-image', async (req, res) => {

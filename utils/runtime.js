@@ -7,13 +7,20 @@ function isVercel() {
 }
 
 function isCloudApiEnabled() {
+  if (isVercel()) return true;
   const { config } = require('../config/env');
   return Boolean(config.whatsappCloud.enabled);
 }
 
 function publicBaseUrl(req) {
   const fromEnv = String(process.env.PUBLIC_BASE_URL || '').trim().replace(/\/$/, '');
-  if (fromEnv) return fromEnv;
+  if (fromEnv) {
+    // Prefer www if apex redirects (Meta webhooks)
+    if (fromEnv.includes('botselbuenpastor.online') && !fromEnv.includes('www.')) {
+      return fromEnv.replace('://', '://www.');
+    }
+    return fromEnv;
+  }
 
   const prod = String(process.env.VERCEL_PROJECT_PRODUCTION_URL || '').trim();
   if (prod) return `https://${prod.replace(/^https?:\/\//, '')}`;

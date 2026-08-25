@@ -4,202 +4,73 @@
 <div class="page-hero page-hero--compact">
   <img src="/assets/logo.png" alt="" class="page-hero__logo" width="56" height="56">
   <h1>Estado del bot</h1>
-  <% if (typeof cloudMode !== 'undefined' && cloudMode) { %>
-  <p>Panel en internet · WhatsApp Cloud API <span id="liveBadge" class="badge bg-secondary ms-1">Comprobando...</span></p>
-  <% } else { %>
-  <p>WhatsApp y el panel corren en este mismo ordenador <span id="liveBadge" class="badge bg-secondary ms-1">Comprobando...</span></p>
-  <% } %>
+  <p>
+    WhatsApp Cloud API (Meta)
+    <span id="liveBadge" class="badge <%= bot.status === 'ready' ? 'bg-success' : 'bg-warning text-dark' %> ms-1">
+      <%= bot.status === 'ready' ? 'Activo' : 'Revisar config' %>
+    </span>
+  </p>
 </div>
 
-<% if (typeof cloudMode !== 'undefined' && cloudMode) { %>
 <div class="howto-strip">
   <div class="howto-step">
     <span class="howto-step__num">1</span>
     <div>
-      <strong>Panel</strong>
-      <p>Edita el menú y las respuestas aquí, desde cualquier sitio.</p>
+      <strong>Menu</strong>
+      <p>Edita opciones y textos en <a href="/menu">Menu</a>.</p>
     </div>
   </div>
   <div class="howto-step">
     <span class="howto-step__num">2</span>
     <div>
       <strong>Webhook</strong>
-      <p>En Meta pega: <code><%= webhookUrl %></code></p>
+      <p><code><%= typeof webhookUrl !== 'undefined' ? webhookUrl : 'https://www.botselbuenpastor.online/webhook' %></code></p>
     </div>
   </div>
   <div class="howto-step">
     <span class="howto-step__num">3</span>
     <div>
       <strong>Firebase</strong>
-      <p><%= firebaseReady ? 'Conectado — el menú se guarda en la nube' : 'Falta configurar Firebase en Vercel' %></p>
+      <p><%= typeof firebaseReady !== 'undefined' && firebaseReady ? 'Conectado' : 'Revisa variables en Vercel' %></p>
     </div>
   </div>
 </div>
 
 <div class="card shadow-sm mb-4 border-0 dash-card">
   <div class="card-header bg-white fw-semibold">
-    <i class="bi bi-cloud-check me-2 text-success"></i> WhatsApp Cloud API
+    <i class="bi bi-cloud-check me-2 text-success"></i> WhatsApp
   </div>
   <div class="card-body">
     <% if (bot.status === 'ready') { %>
-    <p class="mb-2"><span class="status-dot status-ready"></span> <strong>Listo para responder</strong> por la API oficial de Meta.</p>
-    <p class="small text-muted mb-0">No hace falta QR ni dejar un PC encendido. Los chats llegan al webhook y el bot responde solo.</p>
+    <p class="mb-2"><span class="status-dot status-ready"></span> <strong>Listo</strong> — responde por la API de Meta.</p>
+    <p class="small text-muted mb-0">No hace falta QR ni PC encendido. Phone number ID: <code><%= bot.number || '-' %></code></p>
     <% } else { %>
     <p class="text-danger mb-2">Faltan <code>WHATSAPP_TOKEN</code> o <code>WHATSAPP_PHONE_NUMBER_ID</code> en Vercel.</p>
-    <p class="small text-muted mb-0">Impórtalos desde <code>vercel.env</code> y vuelve a desplegar.</p>
     <% } %>
   </div>
 </div>
-<% } else { %>
-<div class="howto-strip">
-  <div class="howto-step">
-    <span class="howto-step__num">1</span>
-    <div>
-      <strong>Arrancar</strong>
-      <p>En una terminal: <code>npm start</code></p>
-    </div>
-  </div>
-  <div class="howto-step">
-    <span class="howto-step__num">2</span>
-    <div>
-      <strong>Panel</strong>
-      <p><a href="<%= localPanelUrl %>"><code><%= localPanelUrl %></code></a></p>
-    </div>
-  </div>
-  <div class="howto-step">
-    <span class="howto-step__num">3</span>
-    <div>
-      <strong>WhatsApp</strong>
-      <p>Pulsa Conectar y escanea el QR con el celular</p>
-    </div>
-  </div>
-</div>
-
-<div class="card shadow-sm mb-4 border-0 dash-card">
-  <div class="card-header bg-white fw-semibold">
-    <i class="bi bi-power me-2 text-success"></i> WhatsApp
-  </div>
-  <div class="card-body">
-    <p class="small text-muted mb-3">
-      Deja este PC encendido y sin suspender. No abras WhatsApp Web en otro navegador con el mismo n&uacute;mero.
-    </p>
-    <div class="d-flex flex-wrap gap-2">
-      <% const canDisconnect = ['ready','qr','loading','authenticating'].includes(bot.status); %>
-      <% const canConnect = bot.status !== 'ready'; %>
-      <button type="button" class="btn btn-danger" id="btnDisconnect" <%= canDisconnect ? '' : 'disabled' %>>
-        <i class="bi bi-plug-fill"></i> Desconectar
-      </button>
-      <button type="button" class="btn btn-success" id="btnConnect" <%= canConnect ? '' : 'disabled' %>>
-        <i class="bi bi-plug"></i> Conectar
-      </button>
-    </div>
-    <p id="controlHint" class="small text-muted mt-2 mb-0"></p>
-  </div>
-</div>
-
-<!-- Vincular WhatsApp (siempre visible) -->
-<div class="card shadow-sm mb-4 border-success overflow-visible">
-  
-  <div class="card-header bg-success text-white fw-semibold">
-    <i class="bi bi-qr-code-scan me-2"></i> Vincular WhatsApp con el celular
-  </div>
-  <div class="card-body">
-    
-    <div id="panelConnected" class="<%= bot.status === 'ready' ? '' : 'd-none' %>">
-      <div class="d-flex align-items-center gap-2 mb-3">
-        <span class="status-dot status-ready"></span>
-        <strong>Conectado</strong>
-        <span class="text-muted" id="connectedAs"><%= bot.pushname || '' %> <%= bot.number ? '('+bot.number+')' : '' %></span>
-      </div>
-      <p class="small text-muted mb-2">Si cambias de tel&eacute;fono, genera un QR nuevo. Para apagar el bot usa <strong>Desconectar</strong>.</p>
-      <div class="d-flex flex-wrap gap-2">
-        <button type="button" class="btn btn-outline-danger btn-sm" id="btnDisconnect2">
-          <i class="bi bi-plug-fill"></i> Desconectar
-        </button>
-        <button type="button" class="btn btn-outline-warning btn-sm" id="btnNewQr">
-          <i class="bi bi-arrow-repeat"></i> Generar nuevo QR
-        </button>
-      </div>
-    </div>
-
-    <div id="panelQr" class="qr-panel <%= bot.status === 'qr' ? '' : 'd-none' %> text-center">
-      <p class="mb-2"><strong>Escanea este codigo con tu celular:</strong></p>
-      <ol class="small text-start text-muted mb-3">
-        <li>Abre WhatsApp en el telefono</li>
-        <li>Menu o Ajustes &rarr; <strong>Dispositivos vinculados</strong></li>
-        <li><strong>Vincular dispositivo</strong> y escanea el QR</li>
-      </ol>
-      <div class="qr-box mb-3">
-        <img id="qrImage" src="<%= bot.status === 'qr' ? '/api/whatsapp/qr-image' : '' %>" alt="QR WhatsApp">
-      </div>
-      <a href="/whatsapp-qr" class="btn btn-success mb-2" target="_blank" rel="noopener">
-        <i class="bi bi-arrows-fullscreen me-1"></i> Ver QR en pantalla grande
-      </a>
-      <p class="small text-muted mb-0" id="qrHint">
-        El c&oacute;digo se actualiza solo. Si se ve peque&ntilde;o, usa pantalla grande o F11.
-      </p>
-    </div>
-
-    <div id="panelDisconnected" class="<%= (bot.status !== 'ready' && bot.status !== 'qr' && !['loading','authenticating','starting'].includes(bot.status)) ? '' : 'd-none' %>">
-      <p class="text-danger mb-2" id="disconnectReason">
-        <% if (bot.status === 'disconnected') { %>
-          WhatsApp desconectado<% if (bot.lastDisconnectReason) { %>: <%= bot.lastDisconnectReason %><% } %>
-        <% } else { %>
-          Esperando conexion con WhatsApp...
-        <% } %>
-      </p>
-      <div class="d-flex flex-wrap gap-2">
-        <button type="button" class="btn btn-success btn-sm" id="btnReconnect">
-          <i class="bi bi-plug"></i> Conectar
-        </button>
-        <button type="button" class="btn btn-warning btn-sm" id="btnNewQr2">
-          <i class="bi bi-qr-code"></i> Mostrar codigo QR
-        </button>
-      </div>
-    </div>
-
-    <div id="panelLoading" class="text-center py-3 <%= ['loading','authenticating','starting'].includes(bot.status) ? '' : 'd-none' %>">
-      <div class="spinner-border text-success" role="status"></div>
-      <p class="mt-2 mb-0 text-muted">Conectando con WhatsApp...</p>
-    </div>
-  </div>
-</div>
-<% } %>
 
 <div class="row g-3 mb-4">
-  <div class="col-md-3">
+  <div class="col-md-4">
     <div class="card card-stat shadow-sm h-100">
       <div class="card-body">
-        <small class="text-muted">WhatsApp</small>
-        <h5 id="statusLabel" class="mt-1 mb-0">
-          <% const statusMap = { ready: 'Conectado', qr: 'Esperando QR', disconnected: 'Desconectado', loading: 'Cargando', authenticating: 'Autenticando', starting: 'Iniciando' }; %>
-          <span class="status-dot status-<%= bot.status === 'ready' ? 'ready' : (bot.status === 'qr' ? 'qr' : 'disconnected') %>"></span>
-          <%= statusMap[bot.status] || bot.status %>
+        <small class="text-muted">Estado</small>
+        <h5 class="mt-1 mb-0" id="statusLabel">
+          <span class="status-dot status-<%= bot.status === 'ready' ? 'ready' : 'disconnected' %>"></span>
+          <%= bot.status === 'ready' ? 'Conectado' : 'Sin configurar' %>
         </h5>
       </div>
     </div>
   </div>
-  <div class="col-md-3">
-    
-    <div class="card card-stat shadow-sm h-100">
-      <div class="card-body">
-        <small class="text-muted">Cuenta</small>
-        <h6 class="mt-1 mb-0" id="botAccount"><%= bot.pushname || '-' %></h6>
-        <small class="text-muted" id="botNumber"><%= bot.number || '' %></small>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-3">
+  <div class="col-md-4">
     <div class="card card-stat shadow-sm h-100">
       <div class="card-body">
         <small class="text-muted">Respuestas auto</small>
-        <h5 class="mt-1 mb-0" id="responsesEnabled">
-          <%= settings.responsesEnabled ? 'Activadas' : 'Desactivadas' %>
-        </h5>
+        <h5 class="mt-1 mb-0" id="responsesEnabled"><%= settings.responsesEnabled ? 'Activadas' : 'Desactivadas' %></h5>
       </div>
     </div>
   </div>
-  <div class="col-md-3">
+  <div class="col-md-4">
     <div class="card card-stat shadow-sm h-100">
       <div class="card-body">
         <small class="text-muted">Mensajes hoy</small>
@@ -209,147 +80,27 @@
   </div>
 </div>
 
-<div class="row g-3">
-  <div class="col-lg-12">
-    <div class="card shadow-sm">
-      <div class="card-header bg-white fw-semibold">Detalles</div>
-      <div class="card-body">
-        <table class="table table-sm mb-0">
-          <tr><th>Scheduler</th><td id="schedulerState"><%= bot.schedulerActive ? 'Activo' : 'Inactivo' %></td></tr>
-          <tr><th>Zona horaria</th><td><%= config.timezone %></td></tr>
-          <tr><th>ChatGPT (.env)</th><td><%= config.openaiEnvEnabled ? 'Habilitado' : 'Deshabilitado' %></td></tr>
-          <tr><th>Reconexiones</th><td id="reconnectCount"><%= bot.reconnectAttempts || 0 %></td></tr>
-        </table>
-        <div class="mt-3">
-          <a href="/automations" class="btn btn-success btn-sm me-2"><i class="bi bi-gear"></i> Automatizaciones</a>
-          <a href="/messages" class="btn btn-outline-primary btn-sm"><i class="bi bi-chat-dots"></i> Ver mensajes</a>
-        </div>
-      </div>
-    </div>
+<div class="card shadow-sm mb-4">
+  <div class="card-header bg-white fw-semibold">Accesos rapidos</div>
+  <div class="card-body d-flex flex-wrap gap-2">
+    <a href="/menu" class="btn btn-brand"><i class="bi bi-list-ul me-1"></i>Editar menu</a>
+    <a href="/messages" class="btn btn-outline-primary"><i class="bi bi-chat-dots me-1"></i>Mensajes</a>
+    <a href="/automations" class="btn btn-outline-secondary"><i class="bi bi-sliders me-1"></i>Automatizaciones</a>
   </div>
 </div>
 
 <% const refreshScript = `
 <script src="/public/js/live.js"></script>
 <script>
-const labels = { ready:'Conectado', qr:'Esperando QR', disconnected:'Desconectado', loading:'Cargando', authenticating:'Autenticando', starting:'Iniciando' };
-
-function updateControlButtons(s) {
-  const active = ['ready','qr','loading','authenticating'].includes(s.status);
-  const canConnect = s.status !== 'ready';
-  const hint = document.getElementById('controlHint');
-  document.querySelectorAll('#btnDisconnect,#btnDisconnect2').forEach(b => { if (b) b.disabled = !active; });
-  document.querySelectorAll('#btnConnect,#btnReconnect').forEach(b => { if (b) b.disabled = !canConnect; });
-  if (hint) {
-    if (s.status === 'ready') {
-      hint.textContent = 'WhatsApp conectado. El botón Conectar queda desactivado porque ya está vinculado.';
-    } else if (s.status === 'disconnected') {
-      hint.textContent = 'WhatsApp apagado. Pulsa Conectar y espera el QR.';
-    } else if (s.status === 'loading' || s.status === 'authenticating') {
-      hint.textContent = 'Conectando… espera unos segundos.';
-    } else if (s.status === 'qr') {
-      hint.textContent = 'Escanea el QR con el celular (WhatsApp → Dispositivos vinculados).';
-    } else hint.textContent = '';
-  }
-}
-
-function showPanel(s) {
-  const connected = document.getElementById('panelConnected');
-  if (!connected) return;
-  const qr = document.getElementById('panelQr');
-  const disc = document.getElementById('panelDisconnected');
-  const load = document.getElementById('panelLoading');
-  [connected, qr, disc, load].forEach(el => el && el.classList.add('d-none'));
-
-  updateControlButtons(s);
-
-  if (s.status === 'ready') {
-    connected.classList.remove('d-none');
-    const as = document.getElementById('connectedAs');
-    if (as) as.textContent = (s.pushname || '') + (s.number ? ' ('+s.number+')' : '');
-  } else if (s.status === 'qr') {
-    qr.classList.remove('d-none');
-    const img = document.getElementById('qrImage');
-    if (img) {
-      img.src = '/api/whatsapp/qr-image?t=' + Date.now();
-      img.removeAttribute('width');
-      img.removeAttribute('height');
-    }
-    qr.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  } else if (['loading','authenticating','starting'].includes(s.status)) {
-    load.classList.remove('d-none');
-  } else {
-    disc.classList.remove('d-none');
-    const r = document.getElementById('disconnectReason');
-    if (r && s.status === 'disconnected') {
-      if (s.lastDisconnectReason === 'desconectado_desde_panel') r.textContent = 'WhatsApp desconectado manualmente desde el panel. Pulsa Conectar para volver.';
-      else if (s.lastDisconnectReason === 'esperando_conexion_desde_panel') r.textContent = 'WhatsApp apagado. Pulsa Conectar arriba para vincularlo.';
-      else if (s.lastDisconnectReason === 'servidor_reiniciado') r.textContent = 'El servidor se reinicio (p. ej. al guardar codigo). Si ya habias conectado, deberia volver solo en unos segundos.';
-      else r.textContent = 'WhatsApp desconectado' + (s.lastDisconnectReason ? ': '+s.lastDisconnectReason : '');
-    }
-  }
-}
-
-async function postAction(url, confirmMsg) {
-  if (confirmMsg && !confirm(confirmMsg)) return;
-  const btns = document.querySelectorAll('#btnDisconnect,#btnDisconnect2,#btnConnect,#btnReconnect,#btnNewQr,#btnNewQr2');
-  btns.forEach(b => b.disabled = true);
-  try {
-    const res = await fetch(url, { method: 'POST', credentials: 'same-origin' });
-    if (res.status === 401) {
-      window.location.href = '/login';
-      return;
-    }
-    const data = await res.json();
-    if (data.bot) { showPanel(data.bot); window.onLiveStatus && window.onLiveStatus({ bot: data.bot }); }
-    if (!data.ok) alert(data.error || 'Error');
-    else if (data.message) {
-      const hint = document.getElementById('controlHint');
-      if (hint) hint.textContent = data.message;
-    }
-  } catch (e) {
-    const msg = e.message === 'Failed to fetch'
-      ? 'No se pudo contactar el panel. ¿Sigue abierto npm start en este PC?'
-      : ('Error: ' + e.message);
-    alert(msg);
-  }
-  finally {
-    const s = window.__lastBotStatus || {};
-    updateControlButtons(s);
-  }
-}
-
-document.getElementById('btnDisconnect')?.addEventListener('click', () => postAction('/api/whatsapp/disconnect', 'Se cerrara WhatsApp en este servidor. El bot dejara de responder hasta que conectes de nuevo. Continuar?'));
-document.getElementById('btnDisconnect2')?.addEventListener('click', () => postAction('/api/whatsapp/disconnect', 'Se cerrara WhatsApp en este servidor. Continuar?'));
-document.getElementById('btnConnect')?.addEventListener('click', () => postAction('/api/whatsapp/connect'));
-document.getElementById('btnReconnect')?.addEventListener('click', () => postAction('/api/whatsapp/connect'));
-document.getElementById('btnNewQr')?.addEventListener('click', () => postAction('/api/whatsapp/new-qr', 'Cerrara la sesion actual y mostrara un QR nuevo. Continuar?'));
-document.getElementById('btnNewQr2')?.addEventListener('click', () => postAction('/api/whatsapp/new-qr', 'Cerrara la sesion y mostrara un QR nuevo. Continuar?'));
-
 window.onLiveStatus = function(data) {
-  const s = data.bot;
-  if (!s) return;
-  window.__lastBotStatus = s;
-  if (window.updateLiveBadgeFromBot) window.updateLiveBadgeFromBot(s);
-  showPanel(s);
-  document.getElementById('statusLabel').innerHTML = '<span class="status-dot status-' + (s.status==='ready'?'ready':(s.status==='qr'?'qr':'disconnected')) + '"></span> ' + (labels[s.status]||s.status);
-  document.getElementById('botAccount').textContent = s.pushname || '-';
-  document.getElementById('botNumber').textContent = s.number || '';
-  if (data.settings) document.getElementById('responsesEnabled').textContent = data.settings.responsesEnabled ? 'Activadas' : 'Desactivadas';
-  if (data.stats) document.getElementById('msgToday').textContent = data.stats.today;
-  document.getElementById('schedulerState').textContent = s.schedulerActive ? 'Activo' : 'Inactivo';
-  document.getElementById('reconnectCount').textContent = s.reconnectAttempts || 0;
+  if (data.stats) {
+    var el = document.getElementById('msgToday');
+    if (el) el.textContent = data.stats.today;
+  }
+  if (data.settings) {
+    var r = document.getElementById('responsesEnabled');
+    if (r) r.textContent = data.settings.responsesEnabled ? 'Activadas' : 'Desactivadas';
+  }
 };
-
-window.onLiveMessage = function(msg, stats) {
-  if (stats) document.getElementById('msgToday').textContent = stats.today;
-};
-
-const initialBot = ${JSON.stringify({ status: bot.status, pushname: bot.pushname, number: bot.number, lastDisconnectReason: bot.lastDisconnectReason })};
-window.__lastBotStatus = initialBot;
-showPanel(initialBot);
-if (window.updateLiveBadgeFromBot) window.updateLiveBadgeFromBot(initialBot);
-updateControlButtons(initialBot);
 </script>`; %>
 <%- include('partials/foot', { extraScripts: refreshScript }) %>
-

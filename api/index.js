@@ -18,7 +18,20 @@ async function getApp() {
   return app;
 }
 
+function normalizeUrl(req) {
+  const forwarded = req.headers['x-forwarded-uri'] || req.headers['x-invoke-path'];
+  if (forwarded && typeof forwarded === 'string') {
+    req.url = forwarded.startsWith('/') ? forwarded : `/${forwarded}`;
+  }
+  // Rewrite destino /api/index.js -> ruta real
+  if (req.url && /^\/api\/index(\.js)?\/?(\?|$)/.test(req.url)) {
+    const q = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    req.url = `/${q}`;
+  }
+}
+
 module.exports = async function handler(req, res) {
+  normalizeUrl(req);
   const server = await getApp();
   return server(req, res);
 };

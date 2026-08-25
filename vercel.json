@@ -1,11 +1,11 @@
 {
   "rewrites": [
-    { "source": "/(.*)", "destination": "/api/index.js" }
+    { "source": "/(.*)", "destination": "/api" }
   ],
   "functions": {
     "api/index.js": {
       "maxDuration": 30,
-      "includeFiles": "{web/views/**,web/public/**,public/**}"
+      "includeFiles": "{web/views/**,web/public/**,public/**,config/**,services/**,utils/**}"
     }
   }
 }
