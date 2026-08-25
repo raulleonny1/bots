@@ -94,9 +94,32 @@ function renderPrivacy(req, res) {
   });
 }
 
+function renderTerms(req, res) {
+  res.render('terms', {
+    title: 'Condiciones de servicio',
+    botName: config.botName,
+  });
+}
+
+function renderDataDeletion(req, res) {
+  res.render('data-deletion', {
+    title: 'Eliminación de datos',
+    botName: config.botName,
+  });
+}
+
 router.get('/privacidad', renderPrivacy);
 router.get('/privacy', renderPrivacy);
 router.get('/politica-de-privacidad', renderPrivacy);
+
+router.get('/terminos', renderTerms);
+router.get('/terms', renderTerms);
+router.get('/condiciones', renderTerms);
+router.get('/condiciones-de-servicio', renderTerms);
+
+router.get('/eliminacion-datos', renderDataDeletion);
+router.get('/data-deletion', renderDataDeletion);
+router.get('/borrar-datos', renderDataDeletion);
 
 router.get('/login', redirectIfAuthenticated, (req, res) => {
   res.render('login', { error: null, title: 'Iniciar sesión' });
