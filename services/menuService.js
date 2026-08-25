@@ -12,7 +12,6 @@ const { cleanResponseText } = require('../utils/menuTree');
 const {
   formatWhatsAppMainMenu,
   formatWhatsAppSubmenu,
-  shouldSendLogoForReplyType,
 } = require('../utils/whatsappMenuFormat');
 
 /** chatId -> índices desde la raíz (vacío = menú principal) */
@@ -67,11 +66,101 @@ function buildCurrentMenuText(chatId) {
   });
 }
 
-function withMenuPresentation(text, type) {
+function withMenuPresentation(text, type, chatId) {
+  const inSubmenu = type === 'submenu';
+  let options = [];
+  let body = '¡Bendiciones! Elige una opción:';
+  let headerTitle = 'El Buen Pastor';
+
+  if (type === 'menu') {
+    options = getRootOptions();
+  } else if (inSubmenu && chatId) {
+    options = getCurrentOptions(chatId);
+    const node = getNodeAtPath(navStack.get(chatId) || []);
+    headerTitle = String(node?.label || 'Opciones').trim() || 'Opciones';
+    const intro = String(node?.response || '').trim();
+    body = intro
+      ? `${intro}\n\nElige una opción:`
+      : `*${headerTitle}*\n\nElige una opción:`;
+    if (body.length > 900) body = `${body.slice(0, 897)}…`;
+  }
+
   return {
     text,
     type,
-    sendLogo: shouldSendLogoForReplyType(type),
+    sendLogo: false,
+    interactive: buildInteractiveFromOptions(options, {
+      body,
+      footer: 'Parroquia El Buen Pastor · Móstoles',
+      headerTitle,
+      includeBack: inSubmenu,
+    }),
+  };
+}
+
+function withLeafNavButtons(text, type, inSubmenu) {
+  const body = String(text || '').trim();
+  if (!body) return { text: body, type, sendLogo: false };
+
+  if (body.length > 1024) {
+    return { text: body, type, sendLogo: false };
+  }
+
+  const buttons = [];
+  if (inSubmenu) buttons.push({ id: 'nav_back', title: '⬅️ Volver' });
+  buttons.push({ id: 'nav_menu', title: '📋 Menú' });
+
+  return {
+    text: body,
+    type,
+    sendLogo: false,
+    interactive: {
+      kind: 'buttons',
+      body,
+      footer: 'El Buen Pastor',
+      buttons: buttons.slice(0, 3),
+    },
+  };
+}
+
+function truncateWa(text, max) {
+  const s = String(text || '').trim();
+  if (s.length <= max) return s;
+  return `${s.slice(0, Math.max(0, max - 1))}…`;
+}
+
+function buildInteractiveFromOptions(options, { body, footer, headerTitle, includeBack }) {
+  const maxOpts = includeBack ? 9 : 10;
+  const list = (Array.isArray(options) ? options : []).slice(0, maxOpts);
+  const rows = list.map((opt, i) => ({
+    id: `opt_${i + 1}`,
+    title: truncateWa(opt.label, 24),
+    description: `Opción ${i + 1}`,
+  }));
+
+  if (includeBack) {
+    rows.push({ id: 'nav_back', title: '⬅️ Volver', description: 'Menú anterior' });
+  }
+
+  if (!rows.length) return null;
+
+  // Pocos ítems: botones (más rápido al tocar). Muchos: lista tipo banco.
+  if (!includeBack && rows.length <= 3) {
+    return {
+      kind: 'buttons',
+      body: truncateWa(body, 1024),
+      footer: truncateWa(footer, 60),
+      buttons: rows.map((r) => ({ id: r.id, title: r.title })),
+    };
+  }
+
+  return {
+    kind: 'list',
+    header: truncateWa(headerTitle || 'Menú', 24),
+    body: truncateWa(body, 1024),
+    footer: truncateWa(footer, 60),
+    button: 'Ver opciones',
+    rows,
   };
 }
 
@@ -94,17 +183,23 @@ function isGreeting(messageBody) {
 
 function isMenuCommand(messageBody) {
   const n = normalizeText(messageBody);
-  return ['menu', 'opciones', 'ayuda', 'inicio'].includes(n);
+  return ['menu', 'opciones', 'ayuda', 'inicio', 'nav_menu', 'nav menu'].includes(n);
 }
 
 function isBackCommand(messageBody) {
   const n = normalizeText(messageBody);
-  return ['atras', 'volver'].includes(n);
+  return ['atras', 'volver', 'nav_back', 'nav back'].includes(n);
 }
 
 function parseNumberChoice(messageBody, max) {
   const n = normalizeText(messageBody);
   if (max <= 0) return null;
+  const fromId = n.match(/^opt[_\s-]?(\d{1,2})$/);
+  if (fromId) {
+    const num = parseInt(fromId[1], 10);
+    if (num >= 1 && num <= max) return num;
+    return null;
+  }
   const match = n.match(/^(?:opcion|opción|numero|número)?\s*(\d{1,2})$/);
   if (!match) return null;
   const num = parseInt(match[1], 10);
@@ -241,7 +336,8 @@ function handleOption(option, index, chatId, currentPath) {
         options: option.children,
         intro: option.response || '',
       }),
-      'submenu'
+      'submenu',
+      chatId
     );
   }
 
@@ -250,18 +346,20 @@ function handleOption(option, index, chatId, currentPath) {
   }
 
   if (chatId) viewingLeaf.set(chatId, true);
+  const inSubmenu = currentPath.length > 0;
 
   if (type === 'link') {
-    const built = buildLinkReply(option, currentPath.length > 0);
+    const built = buildLinkReply(option, inSubmenu);
     return {
       text: built.text,
       messageParts: built.messageParts || null,
       type: 'menu-link',
+      sendLogo: false,
     };
   }
 
   if (type === 'forward') {
-    const built = buildForwardReply(option, currentPath.length > 0);
+    const built = buildForwardReply(option, inSubmenu);
     if (chatId && built.phone) {
       setForwardMode(chatId, built.phone, option.label);
     }
@@ -269,11 +367,12 @@ function handleOption(option, index, chatId, currentPath) {
       text: built.text,
       messageParts: built.messageParts || null,
       type: 'menu-forward',
+      sendLogo: false,
     };
   }
 
-  const built = buildTextReply(option, currentPath.length > 0);
-  return { text: built.text, type: 'menu-text' };
+  const built = buildTextReply(option, inSubmenu);
+  return withLeafNavButtons(built.text, 'menu-text', inSubmenu);
 }
 
 function getMenuReply(messageBody, chatId) {
@@ -285,7 +384,7 @@ function getMenuReply(messageBody, chatId) {
     clearNav(chatId);
     if (chatId) clearForwardMode(chatId);
     logger.info('Menú principal enviado');
-    return withMenuPresentation(buildMenuText(), 'menu');
+    return withMenuPresentation(buildMenuText(), 'menu', chatId);
   }
 
   const path = chatId ? navStack.get(chatId) || [] : [];
@@ -293,7 +392,7 @@ function getMenuReply(messageBody, chatId) {
   if (path.length && isBackCommand(messageBody)) {
     if (viewingLeaf.get(chatId)) {
       viewingLeaf.delete(chatId);
-      return withMenuPresentation(buildCurrentMenuText(chatId), 'submenu');
+      return withMenuPresentation(buildCurrentMenuText(chatId), 'submenu', chatId);
     }
     const next = path.slice(0, -1);
     if (chatId) {
@@ -302,8 +401,13 @@ function getMenuReply(messageBody, chatId) {
     }
     return withMenuPresentation(
       next.length ? buildCurrentMenuText(chatId) : buildMenuText(),
-      next.length ? 'submenu' : 'menu'
+      next.length ? 'submenu' : 'menu',
+      chatId
     );
+  }
+
+  if (!path.length && isBackCommand(messageBody)) {
+    return withMenuPresentation(buildMenuText(), 'menu', chatId);
   }
 
   const current = path.length ? getNodeAtPath(path)?.children || [] : getRootOptions();
@@ -316,10 +420,11 @@ function getMenuReply(messageBody, chatId) {
   }
 
   if (path.length) {
-    return {
-      text: 'Elige un *número* de la lista, o escribe *atrás* / *menu*.',
-      type: 'submenu-hint',
-    };
+    return withMenuPresentation(
+      'Elige una opción de la lista, o *Volver* / *Menú*.',
+      'submenu',
+      chatId
+    );
   }
 
   return null;

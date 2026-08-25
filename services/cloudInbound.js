@@ -1,6 +1,6 @@
 /**
  * Procesa un mensaje entrante de WhatsApp Cloud API (webhook de Meta).
- * Reutiliza el menú y las palabras clave del bot local.
+ * Menú con botones/lista táctil (estilo banca).
  */
 
 const { config } = require('../config/env');
@@ -16,8 +16,15 @@ const { getAutoReply } = require('./autoReplyService');
 function inboundText(message) {
   if (!message) return '';
   if (message.type === 'text') return String(message.text?.body || '').trim();
-  if (message.type === 'button') return String(message.button?.text || message.button?.payload || '').trim();
+  if (message.type === 'button') {
+    return String(message.button?.payload || message.button?.text || '').trim();
+  }
   if (message.type === 'interactive') {
+    const id =
+      message.interactive?.button_reply?.id ||
+      message.interactive?.list_reply?.id ||
+      '';
+    if (id) return String(id).trim();
     return String(
       message.interactive?.button_reply?.title ||
         message.interactive?.list_reply?.title ||
@@ -76,11 +83,16 @@ async function processCloudMessage(inbound) {
   const body = inbound.body || '';
   const chatName = inbound.chatName || chatId;
 
+  // “Escribiendo…” al instante (como apps de banco)
+  const typingPromise = cloudApi.markReadWithTyping(inbound.id);
+
   const claimed = await firestoreService.claimProcessedMessage(inbound.id);
   if (!claimed) {
     logger.info('Webhook duplicado ignorado', { id: inbound.id });
     return;
   }
+
+  await typingPromise;
 
   messageStore.addIncoming({
     from: chatId,
@@ -108,15 +120,20 @@ async function processCloudMessage(inbound) {
       !menuService.isBeliefsSubmenuMode(chatId) &&
       body &&
       !menuService.isMenuCommand(body) &&
-      !menuService.isGreeting(body)
+      !menuService.isGreeting(body) &&
+      !/^opt_/i.test(body)
     ) {
       const target = menuService.getForwardTarget(chatId);
       if (target?.phone) {
         const forwardText = `📩 *${chatName}* (${chatId}):\n\n${body}`;
         try {
           await cloudApi.sendText(target.phone, forwardText);
-          const confirm = `✅ Tu mensaje fue enviado a ${target.label || 'la reverenda'}. Puedes seguir escribiendo aquí o *menu* para salir.`;
-          await cloudApi.sendText(chatId, confirm);
+          const confirm = `✅ Tu mensaje fue enviado a ${target.label || 'la reverenda'}. Puedes seguir escribiendo aquí o tocar *Menú*.`;
+          await cloudApi.sendInteractive(chatId, {
+            kind: 'buttons',
+            body: confirm,
+            buttons: [{ id: 'nav_menu', title: '📋 Menú' }],
+          });
           messageStore.addOutgoing({
             to: chatId,
             body: confirm,
@@ -137,12 +154,23 @@ async function processCloudMessage(inbound) {
     const reply = await getAutoReply(fakeMessage, chatId);
     if (!reply) return;
 
-    if (reply.sendLogo && config.whatsappCloud.logoUrl) {
+    if (reply.interactive) {
       try {
-        await cloudApi.sendImage(chatId, config.whatsappCloud.logoUrl);
-        await new Promise((resolve) => setTimeout(resolve, 80));
+        await cloudApi.sendInteractive(chatId, reply.interactive);
+        messageStore.addOutgoing({
+          to: chatId,
+          body: reply.text || '[menú interactivo]',
+          replyType: reply.type,
+          chatName,
+        });
+        logger.success('Cloud API: menú interactivo enviado', {
+          to: chatName,
+          type: reply.type,
+          kind: reply.interactive.kind,
+        });
+        return;
       } catch (error) {
-        logger.warn('Cloud API: no se pudo enviar el logo', { message: error.message });
+        logger.warn('Cloud API: interactive falló, envío texto', { message: error.message });
       }
     }
 
