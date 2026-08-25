@@ -19,7 +19,7 @@ let settings = null;
 let onSettingsChange = null;
 let settingsFileMtime = 0;
 let lastRemoteSyncAt = 0;
-const REMOTE_SYNC_TTL_MS = 5_000;
+const REMOTE_SYNC_TTL_MS = process.env.VERCEL ? 0 : 5_000;
 
 function defaultSettings() {
   return {
@@ -120,9 +120,10 @@ async function persistSettings() {
 
 /**
  * Carga settings locales y sincroniza con Firestore si está activo.
- * En Vercel evita releer Firebase en cada webhook (TTL ~60s).
+ * En Vercel siempre releemos Firebase (sin caché) para que el menú del panel se aplique en WhatsApp.
  */
-async function init() {
+async function init(options = {}) {
+  const force = Boolean(options.force);
   loadSettings();
   initFirebase();
 
@@ -130,27 +131,24 @@ async function init() {
     return settings;
   }
 
-  if (settings && Date.now() - lastRemoteSyncAt < REMOTE_SYNC_TTL_MS) {
+  if (!force && settings && Date.now() - lastRemoteSyncAt < REMOTE_SYNC_TTL_MS) {
     return settings;
   }
 
   try {
     const remote = await firestoreService.getSettings();
     if (remote && remote.updatedAt) {
-      const previousMenuJson = JSON.stringify(remote.menu || null);
       settings = { ...defaultSettings(), ...remote };
       settings.keywords = remote.keywords || defaultSettings().keywords;
       settings.dailyMessage = { ...defaultSettings().dailyMessage, ...remote.dailyMessage };
       settings.menu = mergeMenu(remote.menu);
       saveSettingsToDisk();
       lastRemoteSyncAt = Date.now();
-      logger.info('Configuracion cargada desde Firebase');
-      // Si el merge limpió textos, guarda en Firebase una sola vez.
-      if (previousMenuJson !== JSON.stringify(settings.menu)) {
-        firestoreService.saveSettings(settings).catch((err) => {
-          logger.warn('No se pudo sincronizar menu limpio a Firebase', { message: err.message });
-        });
-      }
+      logger.info('Configuracion cargada desde Firebase', {
+        updatedAt: settings.updatedAt,
+        options: (settings.menu?.options || []).length,
+      });
+      // No reescribir Firebase aquí: pisaba cambios recién guardados desde el panel.
     } else {
       await firestoreService.saveSettings(getSettings());
       lastRemoteSyncAt = Date.now();
@@ -163,6 +161,11 @@ async function init() {
   }
 
   return settings;
+}
+
+async function reloadFromFirebase() {
+  lastRemoteSyncAt = 0;
+  return init({ force: true });
 }
 
 function reloadSettingsIfFileChanged() {
@@ -261,6 +264,7 @@ function setOnSettingsChange(fn) {
 
 module.exports = {
   init,
+  reloadFromFirebase,
   loadSettings,
   getSettings,
   setWhatsappKeepConnected,

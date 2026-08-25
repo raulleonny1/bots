@@ -1,6 +1,16 @@
 <%- include('partials/head') %>
 <%- include('partials/nav', { activeNav: 'menu' }) %>
 
+<% if (typeof firebaseReady !== 'undefined' && !firebaseReady) { %>
+<div class="alert alert-danger mb-4">
+  <strong>Firebase no conectado.</strong> Los cambios del menú <em>no se guardarán</em> ni llegarán a WhatsApp.
+  <% if (typeof firebaseError !== 'undefined' && firebaseError) { %>
+  <br><span class="small"><%= firebaseError %></span>
+  <% } %>
+  En Vercel añade <code>FIREBASE_SERVICE_ACCOUNT_JSON</code> (JSON completo en una línea) y haz Redeploy.
+</div>
+<% } %>
+
 <div class="page-hero">
   <img src="/assets/logo.png" alt="<%= botName %>" class="page-hero__logo" width="88" height="88">
   <h1>Menú de WhatsApp</h1>

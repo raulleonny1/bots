@@ -34,9 +34,17 @@ async function saveSettings(data) {
   if (!isFirebaseReady()) return false;
 
   try {
+    // merge:true a nivel raíz; el campo `menu` se reemplaza entero (no se fusiona por opción).
     await settingsRef().set(
       {
-        ...data,
+        responsesEnabled: data.responsesEnabled,
+        keywordRepliesEnabled: data.keywordRepliesEnabled,
+        menuEnabled: data.menuEnabled,
+        openaiRepliesEnabled: data.openaiRepliesEnabled ?? null,
+        keywords: data.keywords || [],
+        menu: data.menu || null,
+        dailyMessage: data.dailyMessage || null,
+        whatsappKeepConnected: Boolean(data.whatsappKeepConnected),
         updatedAt: new Date().toISOString(),
       },
       { merge: true }

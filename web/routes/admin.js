@@ -258,13 +258,16 @@ router.post('/messages/clear', async (req, res) => {
   res.redirect('/messages');
 });
 
-router.get('/menu', (req, res, next) => {
+router.get('/menu', async (req, res, next) => {
   try {
+    await settingsService.reloadFromFirebase();
     const settings = settingsService.getSettings();
     res.render('menu', {
       title: 'Panel — Editar menu',
       settings,
       menu: settingsService.getMenuConfig(),
+      firebaseReady: isFirebaseReady(),
+      firebaseError: getInitError() || null,
       config: {
         openaiEnvEnabled: config.openai.enabled,
         openaiUiEnabled: settingsService.isOpenaiRepliesEnabled(),
@@ -278,6 +281,11 @@ router.get('/menu', (req, res, next) => {
 });
 
 router.post('/settings/menu', express.urlencoded({ extended: true, limit: '2mb' }), async (req, res) => {
+  if (!isFirebaseReady()) {
+    logger.error('Guardar menú: Firebase no conectado', { detail: getInitError() });
+    return res.redirect(303, '/?menuError=1');
+  }
+
   const greetings = String(req.body.greetings || '')
     .split(',')
     .map((g) => g.trim())
@@ -291,6 +299,11 @@ router.post('/settings/menu', express.urlencoded({ extended: true, limit: '2mb' 
     return res.redirect(303, '/?menuError=1');
   }
 
+  if (!options.length) {
+    logger.error('Guardar menú: menuTree vacío (no se envían opciones)');
+    return res.redirect(303, '/?menuError=1');
+  }
+
   try {
     settingsService.saveSettings({
       menu: {
@@ -301,7 +314,7 @@ router.post('/settings/menu', express.urlencoded({ extended: true, limit: '2mb' 
       },
     });
     await settingsService.waitForSave();
-    // El dashboard / sí carga en Vercel; /menu?saved=1 a veces daba 404 tras el POST.
+    await settingsService.reloadFromFirebase();
     return res.redirect(303, '/?menuSaved=1');
   } catch (error) {
     logger.error('Error guardando menú', { message: error.message });
