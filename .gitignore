@@ -8,6 +8,7 @@ vercel.env
 # Firebase cuenta de servicio (secretos)
 firebase-service-account.json
 *-firebase-adminsdk-*.json
+PEGAR-EN-VERCEL.txt
 
 # Sesiones de WhatsApp Web (datos sensibles)
 sessions/
