@@ -98,7 +98,7 @@ const config = {
     token: String(process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN || '').trim(),
     phoneNumberId: String(process.env.WHATSAPP_PHONE_NUMBER_ID || '').trim(),
     businessAccountId: String(process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '').trim(),
-    verifyToken: String(process.env.WHATSAPP_VERIFY_TOKEN || '').trim(),
+    verifyToken: String(process.env.WHATSAPP_VERIFY_TOKEN || 'buenpastor-webhook-2026').trim(),
     appSecret: String(process.env.WHATSAPP_APP_SECRET || '').trim(),
     apiVersion: String(process.env.WHATSAPP_API_VERSION || 'v21.0').trim(),
     logoUrl: String(process.env.WHATSAPP_LOGO_URL || '').trim(),
